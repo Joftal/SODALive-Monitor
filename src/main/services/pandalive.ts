@@ -411,7 +411,7 @@ class PandaApi {
     }
     const ses = session.fromPartition(SESSION_PARTITION)
     // 优先用 session.fetch(走该 session 的代理配置); Chromium 网络栈对个别端点
-    // (/v1/member/login 的多 Set-Cookie 响应) 会触发 net::ERR_FAILED, 回退 Node fetch
+    // (如多 Set-Cookie 响应) 会触发 net::ERR_FAILED, 回退 Node fetch
     let status: number
     let text: string
     try {
@@ -472,30 +472,6 @@ class PandaApi {
   }
 
   // ---------- 业务接口 ----------
-  async login(loginId: string, password: string): Promise<{ ok: boolean; message: string }> {
-    await this.enqueue(async () => {
-      // 登录接口返回空字符串, 成功以 Set-Cookie(sessKey) 为准
-      await this.rawFetch('POST', '/v1/member/login', { loginId, password })
-      return null
-    })
-    if (!this.hasSession()) {
-      return { ok: false, message: mt('auth.loginFail') }
-    }
-    this.saveCookies()
-    // 官方校验: isLogin 为 false 说明被防自动登录验证码静默拦截 -> 回滚假会话
-    const info = await this.checkLoginInfo()
-    if (!info.isLogin) {
-      this.clearCookies()
-      this.cookieValid = false
-      return {
-        ok: false,
-        message: mt('auth.loginBlocked')
-      }
-    }
-    this.cookieValid = true
-    return { ok: true, message: mt('auth.loginOk') }
-  }
-
   /** 官方登录态校验: 返回 isLogin / isAdult(成人认证) 等; 可提供 jar 进行"试验证"(不落地) */
   async checkLoginInfo(jarOverride?: CookieJar): Promise<{ isLogin: boolean; isAdult: boolean; idx: number | null }> {
     try {

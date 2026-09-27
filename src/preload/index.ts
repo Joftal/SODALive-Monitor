@@ -15,8 +15,6 @@ function on<T>(channel: string, cb: (payload: T) => void): () => void {
 const apiBridge: ApiBridge = {
   // 账号
   authState: (): Promise<AccountState> => ipcRenderer.invoke(CH.authState),
-  authLoginPassword: (id: string, pw: string): Promise<{ ok: boolean; message: string }> =>
-    ipcRenderer.invoke(CH.authLoginPassword, id, pw),
   authOpenWindow: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke(CH.authOpenWindow),
   authImportCookies: (cookieStr: string): Promise<{ ok: boolean; message: string }> =>
     ipcRenderer.invoke(CH.authImportCookies, cookieStr),

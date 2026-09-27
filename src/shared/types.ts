@@ -262,7 +262,6 @@ export interface RecDeleteFileResult {
 // ---------- window.api 桥接口契约(单一事实源: preload 实现它, env.d.ts 引用它) ----------
 export interface ApiBridge {
   authState(): Promise<AccountState>
-  authLoginPassword(id: string, pw: string): Promise<{ ok: boolean; message: string }>
   authOpenWindow(): Promise<{ ok: boolean; message: string }>
   authImportCookies(cookieStr: string): Promise<{ ok: boolean; message: string }>
   authLogout(): Promise<boolean>
@@ -316,7 +315,6 @@ export interface ApiBridge {
 // ---------- IPC invoke 通道 ----------
 export const CH = {
   authState: 'auth:state',
-  authLoginPassword: 'auth:login-password',
   authOpenWindow: 'auth:open-window',
   authImportCookies: 'auth:import-cookies',
   authLogout: 'auth:logout',

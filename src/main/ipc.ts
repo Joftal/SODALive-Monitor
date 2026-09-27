@@ -45,14 +45,6 @@ export function registerIpc(): void {
   // ---------- 账号 ----------
   ipcMain.handle(CH.authState, () => pushAccount())
 
-  ipcMain.handle(CH.authLoginPassword, async (_e, loginId: string, password: string) => {
-    const r = await api.login(loginId, password)
-    if (r.ok) logger.info('auth', `账号密码登录成功(${loginId})`)
-    else logger.warn('auth', `账号密码登录失败(${loginId}): ${r.message}`)
-    pushAccount()
-    return r
-  })
-
   ipcMain.handle(CH.authOpenWindow, async (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     if (!win) return { ok: false, message: mt('auth.winMissing') }

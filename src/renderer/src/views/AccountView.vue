@@ -15,9 +15,6 @@ onMounted(async () => {
   dataDir.value = await api.appDataDir()
 })
 
-const loginId = ref('')
-const password = ref('')
-const loading = ref(false)
 const winLoading = ref(false)
 const cookieInput = ref('')
 const importLoading = ref(false)
@@ -53,28 +50,6 @@ const status = computed(() => {
     badge: null
   }
 })
-
-async function loginByPassword() {
-  if (!loginId.value.trim() || !password.value) {
-    message.warning(t('account.mAEmpty'))
-    return
-  }
-  loading.value = true
-  try {
-    const r = await api.authLoginPassword(loginId.value.trim(), password.value)
-    if (r.ok) {
-      message.success(t('account.mBOk'))
-      password.value = ''
-      store.account = await api.authState()
-    } else {
-      message.error(r.message)
-    }
-  } catch (e) {
-    message.error(t('account.failLogin') + String((e as Error).message || e))
-  } finally {
-    loading.value = false
-  }
-}
 
 async function loginByWindow() {
   winLoading.value = true
@@ -160,59 +135,36 @@ async function logout() {
         <span class="text-[11px] text-ink3 ml-auto">{{ t('account.methodsHint') }}</span>
       </div>
 
-      <div class="grid lg:grid-cols-2 gap-3.5">
-        <!-- 方式 A: 账号密码 -->
-        <section class="bg-card rounded-[14px] shadow-card px-[18px] py-4 flex flex-col">
-          <div class="flex items-center gap-2.5">
-            <span class="w-[30px] h-[30px] rounded-[9px] grid place-items-center text-ink2 bg-[#9499a0]/10 shrink-0">
-              <svg class="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="15" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M10.85 12.15L19 4m-4 3l2.5 2.5M14 5.5L16.5 8"/></svg>
-            </span>
-            <h3 class="text-[14px] font-bold text-ink1">{{ t('account.mA') }}</h3>
-            <span class="h-[22px] inline-flex items-center px-[9px] rounded-[7px] text-[11px] font-semibold bg-live/[0.12] text-brand-dark">{{ t('account.mARec') }}</span>
+      <!-- 方式 A: 网页登录 -->
+      <section class="bg-card rounded-[14px] shadow-card px-[18px] py-4 flex flex-col">
+        <div class="flex items-center gap-2.5">
+          <span class="w-[30px] h-[30px] rounded-[9px] grid place-items-center text-ink2 bg-[#9499a0]/10 shrink-0">
+            <svg class="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z"/></svg>
+          </span>
+          <h3 class="text-[14px] font-bold text-ink1">{{ t('account.mB') }}</h3>
+          <span class="h-[22px] inline-flex items-center px-[9px] rounded-[7px] text-[11px] font-semibold bg-live/[0.12] text-brand-dark">{{ t('account.mARec') }}</span>
+        </div>
+        <p class="text-[12px] text-ink3 leading-relaxed mt-2">{{ t('account.mBDesc') }}</p>
+        <div class="mt-2.5 space-y-1.5 flex-1">
+          <div class="flex items-center gap-1.5 text-[11.5px] text-ink2">
+            <svg class="w-3 h-3 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>{{ t('account.mBT1') }}
           </div>
-          <p class="text-[12px] text-ink3 leading-relaxed mt-2">{{ t('account.mADesc') }}</p>
-          <div class="grid grid-cols-2 gap-2.5 mt-3">
-            <n-input v-model:value="loginId" :placeholder="t('account.mAId')" />
-            <n-input v-model:value="password" type="password" show-password-on="click" :placeholder="t('account.mAPw')" @keyup.enter="loginByPassword" />
+          <div class="flex items-center gap-1.5 text-[11.5px] text-ink2">
+            <svg class="w-3 h-3 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>{{ t('account.mBT2') }}
           </div>
-          <div class="flex items-center gap-2.5 mt-3.5">
-            <span class="text-[11px] text-ink3">{{ t('account.mAHint') }}</span>
-            <n-button size="small" type="primary" :disabled="loading" @click="loginByPassword" class="ml-auto !w-[88px]">
-              <span class="inline-flex items-center justify-center gap-1.5"><SpinIcon v-if="loading" :size="12" />{{ t('account.mABtn') }}</span>
-            </n-button>
+          <div class="flex items-center gap-1.5 text-[11.5px] text-ink2">
+            <svg class="w-3 h-3 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>{{ t('account.mBT3') }}
           </div>
-        </section>
+        </div>
+        <div class="flex items-center gap-2.5 mt-3.5">
+          <span class="text-[11px] text-ink3">{{ t('account.mBHint') }}</span>
+          <n-button size="small" secondary type="primary" :disabled="winLoading" @click="loginByWindow" class="ml-auto !w-[112px]">
+            <span class="inline-flex items-center justify-center gap-1"><SpinIcon v-if="winLoading" :size="12" />{{ t('account.mBBtn') }}</span>
+          </n-button>
+        </div>
+      </section>
 
-        <!-- 方式 B: 网页登录 -->
-        <section class="bg-card rounded-[14px] shadow-card px-[18px] py-4 flex flex-col">
-          <div class="flex items-center gap-2.5">
-            <span class="w-[30px] h-[30px] rounded-[9px] grid place-items-center text-ink2 bg-[#9499a0]/10 shrink-0">
-              <svg class="w-[15px] h-[15px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z"/></svg>
-            </span>
-            <h3 class="text-[14px] font-bold text-ink1">{{ t('account.mB') }}</h3>
-          </div>
-          <p class="text-[12px] text-ink3 leading-relaxed mt-2">{{ t('account.mBDesc') }}</p>
-          <div class="mt-2.5 space-y-1.5 flex-1">
-            <div class="flex items-center gap-1.5 text-[11.5px] text-ink2">
-              <svg class="w-3 h-3 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>{{ t('account.mBT1') }}
-            </div>
-            <div class="flex items-center gap-1.5 text-[11.5px] text-ink2">
-              <svg class="w-3 h-3 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>{{ t('account.mBT2') }}
-            </div>
-            <div class="flex items-center gap-1.5 text-[11.5px] text-ink2">
-              <svg class="w-3 h-3 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>{{ t('account.mBT3') }}
-            </div>
-          </div>
-          <div class="flex items-center gap-2.5 mt-3.5">
-            <span class="text-[11px] text-ink3">{{ t('account.mBHint') }}</span>
-            <n-button size="small" secondary type="primary" :disabled="winLoading" @click="loginByWindow" class="ml-auto !w-[112px]">
-              <span class="inline-flex items-center justify-center gap-1"><SpinIcon v-if="winLoading" :size="12" />{{ t('account.mBBtn') }}</span>
-            </n-button>
-          </div>
-        </section>
-      </div>
-
-      <!-- 方式 C: Cookie 导入 -->
+      <!-- 方式 B: Cookie 导入 -->
       <section class="bg-card rounded-[14px] shadow-card px-[18px] py-4 mt-3.5">
         <div class="flex items-center gap-2.5">
           <span class="w-[30px] h-[30px] rounded-[9px] grid place-items-center text-ink2 bg-[#9499a0]/10 shrink-0">
