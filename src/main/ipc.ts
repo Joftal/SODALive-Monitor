@@ -375,6 +375,20 @@ export function registerIpc(): void {
 
   ipcMain.handle(CH.appDataDir, () => dataDir())
 
+  // 渲染层诊断日志入档(hls.js 报错等主进程不可见事件); 限流 30 条/分防刷屏
+  let rlogCount = 0
+  let rlogWindow = Date.now()
+  ipcMain.on(CH.appLog, (_e, level: unknown, msg: unknown) => {
+    if (typeof msg !== 'string' || !msg) return
+    const now = Date.now()
+    if (now - rlogWindow > 60_000) {
+      rlogWindow = now
+      rlogCount = 0
+    }
+    if (++rlogCount > 30) return
+    logger[level === 'warn' ? 'warn' : 'info']('renderer', String(msg).slice(0, 1500))
+  })
+
   ipcMain.handle(CH.appOpenLogs, async () => {
     const dir = logger.dir()
     await shell.openPath(dir)

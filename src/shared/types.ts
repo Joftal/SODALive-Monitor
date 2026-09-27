@@ -299,6 +299,8 @@ export interface ApiBridge {
   openLogs(): Promise<string>
   appInfo(): Promise<AppInfo>
   checkUpdate(): Promise<UpdateCheckResult>
+  /** 渲染层诊断日志入主日志文件(限流防刷屏; 勿传含 token/代理凭证的原文) */
+  rendererLog(level: 'info' | 'warn', msg: string): void
   localFileUrl(absPath: string): string
   onAnchors(cb: (list: Anchor[]) => void): () => void
   onRecordings(cb: (list: RecTask[]) => void): () => void
@@ -348,7 +350,8 @@ export const CH = {
   appDataDir: 'app:data-dir',
   appOpenLogs: 'app:open-logs',
   appInfo: 'app:info',
-  appCheckUpdate: 'app:check-update'
+  appCheckUpdate: 'app:check-update',
+  appLog: 'app:log'
 } as const
 
 // ---------- IPC event 通道（主进程 -> 渲染进程） ----------

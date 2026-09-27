@@ -75,6 +75,7 @@ const apiBridge: ApiBridge = {
   openLogs: (): Promise<string> => ipcRenderer.invoke(CH.appOpenLogs),
   appInfo: (): Promise<AppInfo> => ipcRenderer.invoke(CH.appInfo),
   checkUpdate: (): Promise<UpdateCheckResult> => ipcRenderer.invoke(CH.appCheckUpdate),
+  rendererLog: (level: 'info' | 'warn', msg: string): void => ipcRenderer.send(CH.appLog, level, msg.slice(0, 1500)),
   /** 本地录制文件转 plocal:// 可播放 URL(纯拼接, 权限校验在主进程协议处理器) */
   localFileUrl: (absPath: string): string => {
     // 沙箱 preload 的 Buffer polyfill 不支持 base64url 编码 —— 纯 JS 实现(TextEncoder→btoa→±/替换)
