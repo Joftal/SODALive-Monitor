@@ -433,6 +433,9 @@ class Watcher {
   private onLiveEnd(a: Anchor): void {
     if (!this.stillMonitored(a.userId)) return // 同 onLiveStart 守卫: 已取关不弹下播
     logger.info('watcher', `下播: ${a.nick}(@${a.userId})`)
+    // 下播即频道死(实测: 之后 play 宽限期还会假发旧频道源, master 必 404) ——
+    // 缓存源必须当场作废: 保活泵对已知下播不再心跳, 不清就会留死源骗"秒开"徽标, 点播放/录制必暴毙
+    api.invalidatePlay(a.userId)
     sendToast({ type: 'offline', title: mt('watcher.liveEnd', { nick: a.nick }), body: '' })
   }
 

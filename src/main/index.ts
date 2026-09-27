@@ -43,7 +43,13 @@ function setupHeaderInjection(): void {
     callback({ requestHeaders: headers })
   })
   ses.webRequest.onHeadersReceived(filter, (details, callback) => {
-    const headers = { ...details.responseHeaders }
+    const headers = { ...details.responseHeaders } as Record<string, string[]>
+    // IVS 自身已回小写键 access-control-allow-origin: * —— 旧写法再加大写键会被 Chromium
+    // 视为第二个头, 合并成 '*, *' 双值判 CORS multiple values 必拦(渲染层全灭而 ffmpeg/net.fetch
+    // 不吃 CORS, 表现为"能录不能看")。注入前必须删掉所有大小写变体, 保证 ACAO 唯一。
+    for (const k of Object.keys(headers)) {
+      if (/^access-control-allow-(origin|headers)$/i.test(k)) delete headers[k]
+    }
     headers['Access-Control-Allow-Origin'] = ['*']
     headers['Access-Control-Allow-Headers'] = ['*']
     callback({ responseHeaders: headers })

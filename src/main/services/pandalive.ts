@@ -268,10 +268,19 @@ class PandaApi {
     }
   }
 
-  /** 解析 master m3u8, 取变体分档列表(带宽降序); 取不到时回退为 master 本身 */
-  async fetchVariants(masterUrl: string): Promise<VariantInfo[]> {
+  /** 解析 master m3u8, 取变体分档列表(带宽降序);
+   *  拉到清单但无变体行 = 单流直放, 回退 master 本身;
+   *  master 拉不到(404/403 等)返回 null —— 那是 IVS 频道已销毁(下播宽限期 play 仍发死源),
+   *  伪装成"档位=1 的可用源"会让播放/录制必然暴毙, 必须由调用方判拉源失败 */
+  async fetchVariants(masterUrl: string): Promise<VariantInfo[] | null> {
+    let text: string
     try {
-      const text = await this.fetchText(masterUrl)
+      text = await this.fetchText(masterUrl)
+    } catch (e) {
+      console.warn('master playlist unreachable (dead channel?):', String(e))
+      return null
+    }
+    try {
       const lines = text.split('\n')
       const out: VariantInfo[] = []
       for (let i = 0; i < lines.length; i++) {
@@ -291,7 +300,7 @@ class PandaApi {
       out.sort((a, b) => b.bandwidth - a.bandwidth)
       if (out.length) return out
     } catch (e) {
-      console.warn('fetchVariants failed, fallback to master:', String(e))
+      console.warn('fetchVariants parse failed, fallback to master:', String(e))
     }
     return [{ url: masterUrl, bandwidth: 0, resolution: 'master' }]
   }
@@ -817,6 +826,11 @@ class PandaApi {
     }
     // master 只活 10 分钟: 解析出长效变体地址供播放/录制直接使用
     const variants = await this.fetchVariants(hls)
+    if (!variants) {
+      // 平台宽限期: 下播后 play 仍可能 result:true 发已销毁频道的 URL —— 当场判死, 不入缓存
+      logger.warn('api', `拉源判死 @${userId}: master 清单不可达(疑似已销毁频道)`)
+      return { ok: false, error: mt('api.deadChannel') }
+    }
     logger.info('api', `拉源成功 @${userId}${vod || scanned ? '[回放]' : ''} 档位=${variants.length}`)
     return {
       ok: true,
