@@ -87,17 +87,69 @@ async function save() {
     const clean: Settings = {
       ...form.value,
       proxyUrl: (form.value.proxyUrl || '').trim(),
+      tgChatId: (form.value.tgChatId || '').trim(),
+      tgProxy: (form.value.tgProxy || '').trim(),
       pollIntervalSec: clampNum(form.value.pollIntervalSec, 5, 600, 30),
       requestGapMs: clampNum(form.value.requestGapMs, 300, 10000, 1200),
       splitSeconds: clampNum(form.value.splitSeconds, 60, 7200, 900),
       diskLimitGb: clampNum(form.value.diskLimitGb, 0.5, 100, 1)
     }
-    form.value = clean
+    // 全量提交前剔除主进程投影字段(真值在 secrets, 不经设置通道往返)
+    delete (clean as Partial<Settings>).tgTokenSet
+    form.value = { ...clean, tgTokenSet: store.settings?.tgTokenSet ?? false }
     await store.patchSettings(clean)
+    // Token 单独通道: 非空草稿才落保险箱(空草稿=未改动, 清除走「清除」按钮)
+    if (tgTokenDraft.value.trim()) {
+      await tgSaveToken(tgTokenDraft.value.trim())
+      tgTokenDraft.value = ''
+    }
     message.success(t('settings.saved'))
   } finally {
     saving.value = false
   }
+}
+
+// ---- Telegram ----
+const tgTokenDraft = ref('')
+
+/** token 专用通道: 主进程回传含最新 tgTokenSet 的设置投影, 直接刷 store */
+async function tgSaveToken(token: string): Promise<void> {
+  store.settings = await api.telegramSetToken(token)
+}
+
+// 一次性动作: 不设按钮 loading 态(结果经 message 气泡回报; 主进程侧有 15s 超时护栏兜底)
+function tgTest() {
+  if (!form.value) return
+  const token = tgTokenDraft.value.trim()
+  const chatId = (form.value.tgChatId || '').trim()
+  if (!token && !form.value.tgTokenSet) {
+    message.warning(t('settings.tgNeedToken'))
+    return
+  }
+  if (!chatId) {
+    message.warning(t('settings.tgNeedChatId'))
+    return
+  }
+  void api
+    .telegramTest(token, chatId)
+    .then(async (r) => {
+      if (r.ok) {
+        message.success(r.message)
+        // 测试时输入的新 token 顺手持久化, 免得"测通了但没保存"
+        if (token) {
+          await tgSaveToken(token)
+          tgTokenDraft.value = ''
+        }
+      } else {
+        message.error(r.message)
+      }
+    })
+    .catch(() => message.error(t('settings.tgFail')))
+}
+
+async function tgClearToken() {
+  await tgSaveToken('')
+  tgTokenDraft.value = ''
 }
 
 function resetForm() {
@@ -433,6 +485,44 @@ const tileCls =
                   <div class="text-[10.5px] text-ink3">{{ t('settings.closeToTrayD') }}</div>
                 </div>
                 <n-switch size="small" v-model:value="form.closeToTray" />
+              </div>
+            </div>
+
+            <!-- Telegram 推送 -->
+            <div class="px-4 pb-3.5">
+              <div class="rounded-xl bg-fill px-3.5 py-3">
+                <div class="text-[12.5px] font-semibold text-ink1 mb-2">{{ t('settings.tgTitle') }}</div>
+                <div class="grid grid-cols-2 gap-2.5">
+                  <div class="min-w-0">
+                    <div class="text-[11px] text-ink3 mb-1">{{ t('settings.tgToken') }}<span v-if="form.tgTokenSet" class="text-live"> · {{ t('settings.tgTokenSaved') }}</span></div>
+                    <n-input
+                      v-model:value="tgTokenDraft"
+                      type="password"
+                      show-password-toggle
+                      size="small"
+                      :placeholder="t('settings.tgTokenD')"
+                    />
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-[11px] text-ink3 mb-1">{{ t('settings.tgChatId') }}</div>
+                    <n-input v-model:value="form.tgChatId" size="small" />
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-[11px] text-ink3 mb-1">{{ t('settings.tgProxy') }}<span class="text-ink3"> · {{ t('settings.tgProxyD') }}</span></div>
+                    <n-input v-model:value="form.tgProxy" size="small" placeholder="http://127.0.0.1:7890" clearable />
+                  </div>
+                </div>
+                <div class="flex items-center gap-3 mt-3 flex-wrap">
+                  <span class="text-[11px] text-ink3">{{ t('settings.tgEvents') }}</span>
+                  <div class="flex items-center gap-1.5 text-[11.5px] text-ink1"><n-switch size="small" v-model:value="form.tgLive" />{{ t('settings.tgEvLive') }}</div>
+                  <div class="flex items-center gap-1.5 text-[11.5px] text-ink1"><n-switch size="small" v-model:value="form.tgOffline" />{{ t('settings.tgEvOffline') }}</div>
+                  <div class="flex items-center gap-1.5 text-[11.5px] text-ink1"><n-switch size="small" v-model:value="form.tgRecord" />{{ t('settings.tgEvRecord') }}</div>
+                  <div class="flex items-center gap-1.5 text-[11.5px] text-ink1"><n-switch size="small" v-model:value="form.tgError" />{{ t('settings.tgEvError') }}</div>
+                  <div class="ml-auto flex items-center gap-2">
+                    <n-button v-if="form.tgTokenSet" size="tiny" tertiary @click="tgClearToken">{{ t('settings.tgClear') }}</n-button>
+                    <n-button size="tiny" secondary @click="tgTest">{{ t('settings.tgTest') }}</n-button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

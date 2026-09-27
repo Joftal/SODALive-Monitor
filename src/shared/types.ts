@@ -83,6 +83,20 @@ export interface Settings {
   mergeDeleteSegments: boolean
   /** 录制因源失效(停滞/中断)失败时自动重拉新源续录 —— 显式开启才生效(跨签名过期/跨天挂机场景); 每主播连续最多 3 次 */
   autoRetryRecord: boolean
+  /** Telegram 推送: 开播(含粉丝房) */
+  tgLive: boolean
+  /** Telegram 推送: 下播 */
+  tgOffline: boolean
+  /** Telegram 推送: 录制启动/完成 */
+  tgRecord: boolean
+  /** Telegram 推送: 错误(录制出错/熔断等) */
+  tgError: boolean
+  /** Telegram chatId(@BotFather 建 bot 后用 getUpdates 或 /getChatId 获取) */
+  tgChatId: string
+  /** Telegram 专用代理(如 http://127.0.0.1:7890); 留空则跟随全局代理 */
+  tgProxy: string
+  /** bot token 是否已配置(真值存 secrets 保险箱, 此处仅投影供 UI 展示) */
+  tgTokenSet: boolean
   /** 界面主题: light(默认) | dark */
   theme: 'light' | 'dark'
   /** 界面语言 */
@@ -108,6 +122,13 @@ export const DEFAULT_SETTINGS: Settings = {
   mergeMp4: false,
   mergeDeleteSegments: true,
   autoRetryRecord: false,
+  tgLive: true,
+  tgOffline: false,
+  tgRecord: true,
+  tgError: true,
+  tgChatId: '',
+  tgProxy: '',
+  tgTokenSet: false,
   theme: 'light',
   locale: 'zh-CN'
 }
@@ -267,6 +288,10 @@ export interface ApiBridge {
   settingsGet(): Promise<Settings>
   settingsSet(patch: Partial<Settings>): Promise<Settings>
   settingsSelectDir(): Promise<string>
+  /** 保存 Telegram bot token 到加密保险箱(不回显); 空串=清除; 返回刷新后的设置投影 */
+  telegramSetToken(token: string): Promise<Settings>
+  /** 发送测试消息: token 传空串则用保险箱已存值 */
+  telegramTest(token: string, chatId: string): Promise<{ ok: boolean; message: string }>
   watcherStatus(): Promise<WatcherStatus>
   winControl(action: 'min' | 'max' | 'close'): Promise<void>
   openExternal(url: string): Promise<void>
@@ -315,6 +340,8 @@ export const CH = {
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
   settingsSelectDir: 'settings:select-dir',
+  telegramSetToken: 'telegram:set-token',
+  telegramTest: 'telegram:test',
   watcherStatus: 'watcher:status',
   winControl: 'win:control',
   openExternal: 'shell:open-external',

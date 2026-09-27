@@ -61,6 +61,9 @@ const apiBridge: ApiBridge = {
   settingsGet: (): Promise<Settings> => ipcRenderer.invoke(CH.settingsGet),
   settingsSet: (patch: Partial<Settings>): Promise<Settings> => ipcRenderer.invoke(CH.settingsSet, patch),
   settingsSelectDir: (): Promise<string> => ipcRenderer.invoke(CH.settingsSelectDir),
+  telegramSetToken: (token: string): Promise<Settings> => ipcRenderer.invoke(CH.telegramSetToken, token),
+  telegramTest: (token: string, chatId: string): Promise<{ ok: boolean; message: string }> =>
+    ipcRenderer.invoke(CH.telegramTest, token, chatId),
 
   // 轮询
   watcherStatus: (): Promise<WatcherStatus> => ipcRenderer.invoke(CH.watcherStatus),

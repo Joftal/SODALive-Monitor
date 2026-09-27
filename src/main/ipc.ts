@@ -11,6 +11,8 @@ import { watcher } from './services/watcher'
 import { recorder } from './services/recorder'
 import { openLoginWindow } from './services/authWin'
 import { sendToast } from './services/notify'
+import { secrets } from './services/secrets'
+import { tgSendMessage } from './services/telegram'
 import { dataDir, defaultRecordRoot, diskFreeGb, UA } from './util'
 import { logger } from './services/logger'
 import { thumbs } from './services/thumbs'
@@ -302,15 +304,26 @@ export function registerIpc(): void {
   ipcMain.handle(CH.recMerge, (_e, taskId: string) => recorder.mergeTask(String(taskId)))
 
   // ---------- 设置 ----------
-  ipcMain.handle(CH.settingsGet, () => store.getSettings())
+  // tgTokenSet 只作投影下发(UI 显隐用), 真值永不出 secrets 保险箱 ——
+  // 不把活引用直接递给渲染层, 防投影写回 db.json
+  const projectTg = (): Settings => ({ ...store.getSettings(), tgTokenSet: Boolean(secrets.get('tgToken')) })
+
+  ipcMain.handle(CH.settingsGet, () => projectTg())
 
   ipcMain.handle(CH.settingsSet, (_e, patch: Partial<Settings>) => {
+    // tgTokenSet 是主进程投影字段, 渲染层误提交一律忽略(防真值开关被当设置落盘)
+    const p = { ...patch }
+    delete p.tgTokenSet
     const before = store.getSettings()
-    const cfg = store.setSettings(patch)
-    // 变更留痕(排查"参数什么时候被改过"类问题; proxyUrl 可能含凭据, 掩码)
-    const diffs = (Object.keys(patch) as (keyof Settings)[])
-      .filter((k) => patch[k] !== undefined && before[k] !== cfg[k])
-      .map((k) => (k === 'proxyUrl' ? (cfg[k] ? 'proxyUrl=已设置' : 'proxyUrl=已清空') : `${k}=${String(before[k])}→${String(cfg[k])}`))
+    const cfg = store.setSettings(p)
+    // 变更留痕(排查"参数什么时候被改过"类问题; 代理地址可能内嵌凭据, 一律掩码)
+    const diffs = (Object.keys(p) as (keyof Settings)[])
+      .filter((k) => p[k] !== undefined && before[k] !== cfg[k])
+      .map((k) =>
+        k === 'proxyUrl' || k === 'tgProxy'
+          ? (cfg[k] ? `${k}=已设置` : `${k}=已清空`)
+          : `${k}=${String(before[k])}→${String(cfg[k])}`
+      )
     if (diffs.length) logger.info('app', `设置变更: ${diffs.join(', ')}`)
     applyProxy(cfg.proxyUrl)
     setMainLocale(cfg.locale) // 语言变更即时注入主进程 i18n(单向数据流)
@@ -319,7 +332,20 @@ export function registerIpc(): void {
     if (WATCH_KEYS.some((k) => before[k] !== cfg[k])) {
       watcher.tick()
     }
-    return cfg
+    return projectTg()
+  })
+
+  ipcMain.handle(CH.telegramSetToken, (_e, token: string) => {
+    const t = String(token || '').trim()
+    secrets.set('tgToken', t)
+    logger.info('app', t ? 'Telegram bot token 已保存到保险箱' : 'Telegram bot token 已清除')
+    return projectTg()
+  })
+
+  ipcMain.handle(CH.telegramTest, async (_e, token: string, chatId: string) => {
+    const t = String(token || '').trim() || secrets.get('tgToken')
+    const r = await tgSendMessage(t, String(chatId || ''), mt('tg.testBody'))
+    return r.ok ? { ok: true, message: mt('tg.testOk') } : { ok: false, message: r.message }
   })
 
   ipcMain.handle(CH.settingsSelectDir, async (e) => {

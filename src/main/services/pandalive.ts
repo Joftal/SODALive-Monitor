@@ -116,6 +116,8 @@ function scanM3u8(node: unknown, depth = 0): string {
 }
 
 let nodeProxyUrl = ''
+/** 当前代理地址(供 Telegram 等旁路请求的 Node 兜底通道复用同一代理) */
+export const proxyUrl = (): string => nodeProxyUrl
 
 export function applyProxy(proxyUrl: string): void {
   const ses = session.fromPartition(SESSION_PARTITION)
@@ -174,7 +176,7 @@ function doHttpsRequest(
   })
 }
 
-async function nodeHttpRequest(
+export async function nodeHttpRequest(
   method: 'GET' | 'POST',
   urlStr: string,
   headers: Record<string, string>,

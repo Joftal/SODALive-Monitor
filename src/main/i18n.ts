@@ -93,7 +93,11 @@ const zh: Dict = {
   'rec.delNoTask': '任务不存在或已被清理',
   'rec.delLocked': '{name} 等 {n} 个文件删除失败(可能被占用)',
   'rec.delFileNotIn': '该文件不属于此任务',
-  'rec.delFileLocked': '文件删除失败(可能正在被播放)'
+  'rec.delFileLocked': '文件删除失败(可能正在被播放)',
+  // telegram
+  'tg.fail': 'Telegram 推送失败',
+  'tg.testBody': '✅ PandaLive Monitor Telegram 通知测试成功',
+  'tg.testOk': '发送成功, 请到 Telegram 查看'
 }
 
 const en: Dict = {
@@ -169,7 +173,10 @@ const en: Dict = {
   'rec.delNoTask': 'Task does not exist or was cleaned up',
   'rec.delLocked': '{name} and {n} other file(s) could not be deleted (possibly locked)',
   'rec.delFileNotIn': 'File does not belong to this task',
-  'rec.delFileLocked': 'Delete failed (file may be playing)'
+  'rec.delFileLocked': 'Delete failed (file may be playing)',
+  'tg.fail': 'Telegram push failed',
+  'tg.testBody': '✅ PandaLive Monitor Telegram test message',
+  'tg.testOk': 'Sent; please check Telegram'
 }
 
 function dict(): Dict {
