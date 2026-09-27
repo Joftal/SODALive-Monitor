@@ -96,13 +96,14 @@ async function save() {
     }
     // 全量提交前剔除主进程投影字段(真值在 secrets, 不经设置通道往返)
     delete (clean as Partial<Settings>).tgTokenSet
-    form.value = { ...clean, tgTokenSet: store.settings?.tgTokenSet ?? false }
     await store.patchSettings(clean)
     // Token 单独通道: 非空草稿才落保险箱(空草稿=未改动, 清除走「清除」按钮)
     if (tgTokenDraft.value.trim()) {
       await tgSaveToken(tgTokenDraft.value.trim())
       tgTokenDraft.value = ''
     }
+    // 脏标记按 JSON 键序比对, 手工重组 form 键序必翻车 —— 一律从持久化投影回拷
+    if (store.settings) form.value = { ...store.settings }
     message.success(t('settings.saved'))
   } finally {
     saving.value = false
@@ -112,9 +113,11 @@ async function save() {
 // ---- Telegram ----
 const tgTokenDraft = ref('')
 
-/** token 专用通道: 主进程回传含最新 tgTokenSet 的设置投影, 直接刷 store */
+/** token 专用通道: 主进程回传含最新 tgTokenSet 的设置投影, 直接刷 store;
+ *  form 只外科式同步这一个键(整体回拷会吞掉用户其他未保存编辑) */
 async function tgSaveToken(token: string): Promise<void> {
   store.settings = await api.telegramSetToken(token)
+  if (form.value && store.settings) form.value.tgTokenSet = store.settings.tgTokenSet
 }
 
 // 一次性动作: 不设按钮 loading 态(结果经 message 气泡回报; 主进程侧有 15s 超时护栏兜底)
