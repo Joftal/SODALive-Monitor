@@ -230,6 +230,7 @@ class Watcher {
         continue
       }
       const wasLive = a.isLive
+      const prevTags = a.tags // updateAnchor 原地改 a, 变更判定必须先拍旧标签快照
       liveFound++
       const patch: Partial<Anchor> = {
         isLive: true,
@@ -247,6 +248,7 @@ class Watcher {
       }
       store.updateAnchor(a.userId, patch)
       if (!wasLive) this.onLiveStart({ ...a, ...patch } as Anchor)
+      else this.onRoomShift(a, prevTags, patch.tags as NonNullable<Anchor['tags']>)
     }
 
     // 兜底: 列表不可见的关注主播(19+/隐藏房/500名外) member/bj 节流复查
@@ -285,6 +287,7 @@ class Watcher {
     // 改后再读 a.isLive 恒为新值 → 开播翻转判定会被吞(通知/预取/自录/源作废全丢);
     // 与主循环 wasLive 同规约
     const wasLive = a.isLive
+    const prevTags = a.tags // 同主循环: updateAnchor 原地改 a, 变更判定先拍旧标签
     if (media && media.isLive) {
       const patch: Partial<Anchor> = {
         isLive: true,
@@ -302,6 +305,7 @@ class Watcher {
       }
       store.updateAnchor(a.userId, patch)
       if (!wasLive) this.onLiveStart({ ...a, ...patch } as Anchor)
+      else this.onRoomShift(a, prevTags, patch.tags as NonNullable<Anchor['tags']>)
       return 1
     }
     if (wasLive) {
@@ -437,6 +441,21 @@ class Watcher {
       // getSettings 恒返回对象(恒真判定已移除)
       void recorder.start({ userId: a.userId, nick: a.nick, title: a.title, password: '', auto: true }).catch(() => undefined)
     }
+  }
+
+  /** 持续在播中的房态翻转: 由不敏感变为 19+ 房 或 粉丝房时补发一次通知(新开播走 onLiveStart, 不在此列) */
+  private onRoomShift(a: Anchor, oldTags: Anchor['tags'], newTags: NonNullable<Anchor['tags']>): void {
+    if (!oldTags) return // 上轮无标签(理论不达: wasLive 分支上轮已在播): 不臆断为变更
+    const toAdult = !oldTags.isAdult && newTags.isAdult
+    const toFan = oldTags.type !== 'fan' && newTags.type === 'fan'
+    if (!toAdult && !toFan) return
+    if (!this.stillMonitored(a.userId)) return
+    const kind = toAdult && toFan ? mt('watcher.roomBoth') : toAdult ? mt('watcher.roomAdult') : mt('watcher.roomFan')
+    logger.info('watcher', `房态变更: ${a.nick}(@${a.userId}) ${kind}`)
+    sendToast(
+      { type: 'roomChange', title: `${a.nick} ${kind}`, body: a.title || mt('watcher.clickWatch') },
+      { ev: 'roomChange', ctx: { anchor: a, liveSec: liveElapsedSec(a.startTime), detail: kind } }
+    )
   }
 
   private onLiveEnd(a: Anchor): void {

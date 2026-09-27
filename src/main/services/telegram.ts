@@ -133,7 +133,7 @@ export async function tgPush(token: string, chatId: string, ev: TgEvent, toast: 
   // master 令牌一回取即焚, 发出去必 403 —— 只在无变体时回退。getPlayCached 与预取泵/录制
   // 共享在途去重, 零增量请求(watcher 先 invalidatePlay 再弹卡, 命中必为新一场源)
   const full: TgCtx = { ...ctx }
-  if ((ev === 'live' || ev === 'fanLive') && !full.streamUrl && ctx.anchor) {
+  if ((ev === 'live' || ev === 'fanLive' || ev === 'roomChange') && !full.streamUrl && ctx.anchor) {
     await api
       .getPlayCached(ctx.anchor.userId)
       .then((p) => (full.streamUrl = p.ok ? p.variants?.[0]?.url || p.m3u8 || '' : ''))

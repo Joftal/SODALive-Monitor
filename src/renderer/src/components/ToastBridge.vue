@@ -15,6 +15,7 @@ onMounted(() => {
     const typeMap: Record<Toast['type'], 'success' | 'info' | 'error' | 'warning'> = {
       live: 'success',
       fanLive: 'warning', // 粉丝房开播: 琥珀色与普通开播区分
+      roomChange: 'warning', // 房态变更(转 19+/粉丝房): 琥珀色警示
       offline: 'info',
       rec: 'info',
       error: 'error',
@@ -25,7 +26,7 @@ onMounted(() => {
       duration: 4500,
       keepAliveOnHover: true
     })
-    if ((t.type === 'live' || t.type === 'fanLive') && store.settings?.notifySound) playDing()
+    if ((t.type === 'live' || t.type === 'fanLive' || t.type === 'roomChange') && store.settings?.notifySound) playDing()
   })
 })
 

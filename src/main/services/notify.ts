@@ -11,6 +11,7 @@ import { mt } from '../i18n'
 const TG_GATE: Record<Toast['type'], 'tgLive' | 'tgOffline' | 'tgRecord' | 'tgError'> = {
   live: 'tgLive',
   fanLive: 'tgLive',
+  roomChange: 'tgLive',
   offline: 'tgOffline',
   rec: 'tgRecord',
   info: 'tgRecord',
@@ -21,6 +22,7 @@ const TG_GATE: Record<Toast['type'], 'tgLive' | 'tgOffline' | 'tgRecord' | 'tgEr
 const TG_EV_BY_TYPE: Record<Toast['type'], TgEvent> = {
   live: 'live',
   fanLive: 'fanLive',
+  roomChange: 'roomChange',
   offline: 'offline',
   rec: 'recDone',
   info: 'generic',

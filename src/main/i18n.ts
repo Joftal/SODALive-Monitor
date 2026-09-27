@@ -17,6 +17,9 @@ const zh: Dict = {
   // watcher
   'watcher.liveStart': '{nick} 开播了',
   'watcher.fanLiveStart': '粉丝房开播: {nick}',
+  'watcher.roomAdult': '变为 19+ 房间',
+  'watcher.roomFan': '变为粉丝房',
+  'watcher.roomBoth': '变为 19+ 粉丝房',
   'watcher.clickWatch': '点击观看',
   'watcher.liveEnd': '{nick} 下播了',
   'watcher.circuitTitle': '监控熔断',
@@ -104,6 +107,9 @@ const zh: Dict = {
 const en: Dict = {
   'watcher.liveStart': '{nick} is live',
   'watcher.fanLiveStart': 'Fan room live: {nick}',
+  'watcher.roomAdult': 'turned into a 19+ room',
+  'watcher.roomFan': 'turned into a fan-only room',
+  'watcher.roomBoth': 'turned into a 19+ fan-only room',
   'watcher.clickWatch': 'Tap to watch',
   'watcher.liveEnd': '{nick} went offline',
   'watcher.circuitTitle': 'Monitor paused',

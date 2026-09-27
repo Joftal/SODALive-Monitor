@@ -8,7 +8,7 @@ import { Toast, Anchor } from '../../shared/types'
 // ==========================================
 
 /** 事件语义键: 由调用方(唯一知道"发生了什么"的地方)显式声明, 不靠 toast 文案反推 */
-export type TgEvent = 'live' | 'fanLive' | 'offline' | 'recStart' | 'recDone' | 'recError' | 'circuit' | 'generic'
+export type TgEvent = 'live' | 'fanLive' | 'roomChange' | 'offline' | 'recStart' | 'recDone' | 'recError' | 'circuit' | 'generic'
 
 export interface TgPayload {
   /** 纯文本卡片内容(无需转义通道, 仅 <b> 头部与 <a> 链接) */
@@ -28,6 +28,7 @@ function link(text: string, href: string): string {
 const HEAD: Record<TgEvent, string> = {
   live: '<b>开播</b>',
   fanLive: '<b>粉丝房开播</b>',
+  roomChange: '<b>房态变更</b>',
   offline: '<b>下播</b>',
   recStart: '<b>开始录制</b>',
   recDone: '<b>录制完成</b>',
@@ -85,14 +86,14 @@ export function buildTgPayload(ev: TgEvent, t: Toast, ctx: TgCtx): TgPayload {
   // 数据行: 能凑出多少凑多少, 全空不占行
   const facts: string[] = []
   if (a && a.viewerCount > 0) facts.push(`观众 ${a.viewerCount}`)
-  if (ev === 'live' && ctx.liveSec) facts.push(`已播 ${fmtDur(ctx.liveSec)}`)
+  if ((ev === 'live' || ev === 'roomChange') && ctx.liveSec) facts.push(`已播 ${fmtDur(ctx.liveSec)}`)
   if (ev === 'offline' && ctx.liveSec) facts.push(`本场 ${fmtDur(ctx.liveSec)}`)
-  if (a && a.autoRecord && (ev === 'live' || ev === 'fanLive')) facts.push('自动录制: 开')
+  if (a && a.autoRecord && (ev === 'live' || ev === 'fanLive' || ev === 'roomChange')) facts.push('自动录制: 开')
   if (facts.length) lines.push(facts.join('  '))
   if ((ev === 'recDone' || ev === 'recError') && (ctx.recSec || ctx.recMb)) {
     lines.push(`文件 ${fmtMb((ctx.recMb || 0) * 1024 ** 2)} / ${fmtDur(ctx.recSec || 0)}${ctx.files?.length ? ` / ${ctx.files.length} 段` : ''}`)
   }
-  if ((ev === 'live' || ev === 'fanLive') && ctx.streamUrl) lines.push(link('直播源', ctx.streamUrl))
+  if ((ev === 'live' || ev === 'fanLive' || ev === 'roomChange') && ctx.streamUrl) lines.push(link('直播源', ctx.streamUrl))
   // 末行说明: ctx.detail 优先, 退回 toast.body(系统卡正文); 已含则不重复
   const tail = ctx.detail || t.body || ''
   if (tail) lines.push(esc(tail).slice(0, 200))
