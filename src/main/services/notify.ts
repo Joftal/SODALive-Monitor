@@ -15,7 +15,8 @@ const TG_GATE: Record<Toast['type'], 'tgLive' | 'tgOffline' | 'tgRecord' | 'tgEr
   offline: 'tgOffline',
   rec: 'tgRecord',
   info: 'tgRecord',
-  error: 'tgError'
+  error: 'tgError',
+  session: 'tgError' // 会话作废归入异常开关
 }
 
 /** toast.type -> TG 卡片头兜底映射(调用方传显式 ev 优先: 同为 'error' 的熔断/录错语义不同) */
@@ -26,7 +27,8 @@ const TG_EV_BY_TYPE: Record<Toast['type'], TgEvent> = {
   offline: 'offline',
   rec: 'recDone',
   info: 'generic',
-  error: 'recError'
+  error: 'recError',
+  session: 'generic'
 }
 
 /** 可选第三参: 该事件的 TG 语义卡(显式事件名 + 主播/统计上下文) */

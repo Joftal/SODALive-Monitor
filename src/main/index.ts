@@ -165,6 +165,14 @@ app.whenReady().then(() => {
   createTray()
   pushAccount()
 
+  // 启动登录态自愈(异步, 不挡窗口): vault 快照被服务端判死时, 尝试接管本地浏览器存储里更新的 cookie;
+  // 治愈成功再推一次账号状态, UI 徽标随之翻绿
+  void (async () => {
+    if (api.hasSession() && !(await api.checkLoginInfo()).isLogin && (await api.healFromStore())) {
+      pushAccount()
+    }
+  })()
+
   // 启动轮询
   watcher.start()
   logger.info('watcher', `轮询启动(mode=${cfg.watchMode}, 间隔=${cfg.pollIntervalSec}s, gap=${cfg.requestGapMs}ms)`)

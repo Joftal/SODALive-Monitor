@@ -19,7 +19,8 @@ onMounted(() => {
       offline: 'info',
       rec: 'info',
       error: 'error',
-      info: 'info'
+      info: 'info',
+      session: 'error' // 会话被服务端作废: 红色警示, 与异常同权重
     }
     message.create(t.body ? `${t.title}，${t.body}` : t.title, {
       type: typeMap[t.type] || 'info',

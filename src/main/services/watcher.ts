@@ -33,6 +33,7 @@ class Watcher {
   private errorStreak = 0
   private cooldownUntil = 0
   private roundInFlight = false
+  private sessionDeadStreak = 0
   private discovery: DiscoveryItem[] = []
   status: WatcherStatus = {
     running: false,
@@ -270,9 +271,25 @@ class Watcher {
     this.idleQueue = missing.filter((a) => !a.isLive) // 新快照整批替换(上轮未扫完的按最新状态重排)
 
     this.status.liveFound = liveFound
-    // 登录态检测: loginInfo 非空即视为 cookie 有效(结构宽容)
-    if (api.hasSession()) api.cookieValid = Boolean(loginInfo)
-    if (!api.hasSession()) api.cookieValid = false
+    // 登录态检测: loginInfo 非空即视为 cookie 有效(结构宽容);
+    // 有效→无效 连续 2 轮才宣判作废(单轮缺字段可能是末页响应抖动)。
+    // 判死前 cookieValid 保持 true(它同时是"未通知过"闩锁), 宣判当轮才翻 false 并通知一次;
+    // 启动即死/曾通知过都不再重复, 重新登录(importCookies)会重新置 true 武装下次检测
+    if (api.hasSession()) {
+      const alive = Boolean(loginInfo)
+      if (alive) {
+        this.sessionDeadStreak = 0
+        api.cookieValid = true
+      } else if (api.cookieValid && ++this.sessionDeadStreak >= 2) {
+        this.sessionDeadStreak = 0
+        api.cookieValid = false
+        logger.warn('watcher', '会话已被服务端作废: 列表响应连续 2 轮不再返回 loginInfo')
+        sendToast({ type: 'session', title: mt('watcher.sessionDeadT'), body: mt('watcher.sessionDeadB') })
+      }
+    } else {
+      api.cookieValid = false
+      this.sessionDeadStreak = 0
+    }
     this.pushAnchors()
   }
 

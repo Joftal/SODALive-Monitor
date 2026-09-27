@@ -62,6 +62,8 @@ const zh: Dict = {
   'api.riskHtml': '返回HTML(疑似风控验证页)',
   'api.riskJson': '响应不是JSON(疑似风控)',
   // auth
+  'watcher.sessionDeadT': '登录态已失效',
+  'watcher.sessionDeadB': 'Cookie 已被服务端作废, 请到「账号」页重新登录或导入 Cookie',
   'auth.loginOkAdult': '登录成功, 账号含成人认证',
   'auth.loginOkNoAdult': '登录成功(账号未通过 pandalive 成人认证)',
   'auth.cancelled': '已取消登录',
@@ -146,6 +148,8 @@ const en: Dict = {
   'api.riskServer': 'HTTP {status} server error',
   'api.riskHtml': 'Got HTML (suspected risk-control page)',
   'api.riskJson': 'Response is not JSON (suspected risk control)',
+  'watcher.sessionDeadT': 'Session expired',
+  'watcher.sessionDeadB': 'The cookie was invalidated by the server. Re-login or import a new cookie on the Account page',
   'auth.loginOkAdult': 'Logged in; account is adult-verified',
   'auth.loginOkNoAdult': 'Logged in (account is NOT adult-verified on pandalive)',
   'auth.cancelled': 'Login cancelled',

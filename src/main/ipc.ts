@@ -22,11 +22,13 @@ async function pushAccount(): Promise<AccountState> {
   let realLogin = false
   let isAdult = false
   let userIdx: number | null = null
+  let netFail = false
   if (api.hasSession()) {
     const info = await api.checkLoginInfo()
     realLogin = info.isLogin
     isAdult = info.isAdult
     userIdx = info.idx
+    netFail = info.netFail
   }
   const state: AccountState = {
     loggedIn: api.hasSession(),
@@ -36,6 +38,12 @@ async function pushAccount(): Promise<AccountState> {
     userIdx,
     encrypted: vault.encrypted
   }
+  // 登录态核对留痕: 区分「本地没存住(cookie=0)」与「服务端判死(有cookie但未登录)」与「网络/风控误检(netFail)」
+  logger.info(
+    'auth',
+    `登录态核对: cookie=${api.cookieCount}枚 会话=${api.hasSession() ? '有' : '无'} ` +
+      `官方校验=${netFail ? '请求失败(网络/风控)' : realLogin ? `已登录${isAdult ? ' +成人认证' : ' 无成人认证'}` : api.hasSession() ? '未登录(cookie已被服务端作废)' : '未登录'}`
+  )
   const win = BrowserWindow.getAllWindows()[0]
   win?.webContents.send(EV.account, state)
   return state

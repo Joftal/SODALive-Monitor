@@ -87,6 +87,14 @@ export interface VariantInfo {
   resolution: string
 }
 
+/** checkLoginInfo 结果: netFail=true 表示请求本身失败(网络/风控), 与"服务端明确未登录"语义不同 */
+interface LoginInfoResult {
+  isLogin: boolean
+  isAdult: boolean
+  idx: number | null
+  netFail: boolean
+}
+
 interface QueueJob<T> {
   run: () => Promise<T>
   resolve: (v: T) => void
@@ -218,14 +226,15 @@ export async function nodeHttpRequest(
 }
 
 class PandaApi {
-  /** 拉取任意绝对 URL 文本(带 pandalive Origin/Referer, 经 session/代理/Node 兜底) */
+  /** 拉取任意绝对 URL 文本(带 pandalive Origin/Referer, 经 session/代理/Node 兜底)
+   *  Cookie 仅对 pandalive 域附带: 媒体源(CDN)不需要也不应拿到会话凭证 */
   private async fetchText(url: string): Promise<string> {
     const headers: Record<string, string> = {
       'User-Agent': UA,
       Origin: 'https://www.pandalive.co.kr',
       Referer: 'https://www.pandalive.co.kr/'
     }
-    if (this.hasSession()) headers['Cookie'] = this.cookieHeader
+    if (/(^|\.)pandalive\.co\.kr$/.test(new URL(url).hostname) && this.hasSession()) headers['Cookie'] = this.cookieHeader
     const ses = session.fromPartition(SESSION_PARTITION)
     try {
       const sesFetch = (ses as unknown as { fetch?: typeof net.fetch }).fetch
@@ -335,14 +344,24 @@ class PandaApi {
     return Boolean(this.jar['sessKey'])
   }
 
+  /** 诊断用: 当前 jar 里的 cookie 条数 */
+  get cookieCount(): number {
+    return Object.keys(this.jar).length
+  }
+
   private harvestCookies(setCookies: string[]): void {
     let changed = false
     for (const c of setCookies) {
       const pair = c.split(';')[0]
       const i = pair.indexOf('=')
       if (i > 0) {
-        this.jar[pair.slice(0, i).trim()] = pair.slice(i + 1).trim()
-        changed = true
+        const k = pair.slice(0, i).trim()
+        const v = pair.slice(i + 1).trim()
+        // 仅在值真正变化时记 changed: 官网常态回吐同值 Set-Cookie, 全等则跳过 vault 落盘
+        if (this.jar[k] !== v) {
+          this.jar[k] = v
+          changed = true
+        }
       }
     }
     if (changed && this.hasSession()) this.saveCookies()
@@ -472,8 +491,29 @@ class PandaApi {
   }
 
   // ---------- 业务接口 ----------
-  /** 官方登录态校验: 返回 isLogin / isAdult(成人认证) 等; 可提供 jar 进行"试验证"(不落地) */
-  async checkLoginInfo(jarOverride?: CookieJar): Promise<{ isLogin: boolean; isAdult: boolean; idx: number | null }> {
+  /** 官方登录态校验: 返回 isLogin / isAdult(成人认证) 等; 可提供 jar 进行"试验证"(不落地, 不经缓存)
+   *  netFail=true 表示请求本身失败(网络/风控), 与"服务端明确未登录"语义不同, 调用方不得据此判死会话
+   *  无 jarOverride 时走 30s 结果缓存 + 在途合并: 启动期 authState/自愈核对/pushAccount 三连发收敛为一发;
+   *  缓存以 cookieHeader 为键, jar 任何变更(登录/导入/轮换)天然失配; netFail 不缓存, 下次仍真实复检 */
+  private loginInfoCache: { at: number; header: string; info: LoginInfoResult } | null = null
+  private loginInfoInflight: { header: string; p: Promise<LoginInfoResult> } | null = null
+
+  async checkLoginInfo(jarOverride?: CookieJar): Promise<LoginInfoResult> {
+    if (jarOverride) return this.fetchLoginInfo(jarOverride)
+    const header = this.cookieHeader
+    if (this.loginInfoCache && this.loginInfoCache.header === header && Date.now() - this.loginInfoCache.at < 30_000) {
+      return this.loginInfoCache.info
+    }
+    if (this.loginInfoInflight && this.loginInfoInflight.header === header) return this.loginInfoInflight.p
+    const p = this.fetchLoginInfo().finally(() => {
+      if (this.loginInfoInflight?.p === p) this.loginInfoInflight = null
+    })
+    this.loginInfoInflight = { header, p }
+    return p
+  }
+
+  private async fetchLoginInfo(jarOverride?: CookieJar): Promise<LoginInfoResult> {
+    let out: LoginInfoResult
     try {
       const { text } = await this.rawFetch('POST', '/v1/member/login_info', {}, {}, jarOverride)
       const j = this.parseText<{
@@ -481,10 +521,12 @@ class PandaApi {
         loginInfo?: { userInfo?: { isLogin?: boolean; isAdult?: boolean; idx?: number } }
       }>(text)
       const ui = j?.loginInfo?.userInfo || {}
-      return { isLogin: !!ui.isLogin, isAdult: !!ui.isAdult, idx: ui.idx ?? null }
+      out = { isLogin: !!ui.isLogin, isAdult: !!ui.isAdult, idx: ui.idx ?? null, netFail: false }
     } catch {
-      return { isLogin: false, isAdult: false, idx: null }
+      out = { isLogin: false, isAdult: false, idx: null, netFail: true }
     }
+    if (!jarOverride && !out.netFail) this.loginInfoCache = { at: Date.now(), header: this.cookieHeader, info: out }
+    return out
   }
 
   /** 导入 cookie; infoPre = 已做过的 login_info 校验结果(传入则消重, 不重复请求) */
@@ -494,6 +536,29 @@ class PandaApi {
     this.clearPlayCache() // 新会话生效: 旧会话签发的源清空重来
     const info = infoPre ?? (await this.checkLoginInfo())
     this.cookieValid = info.isLogin
+  }
+
+  /** 启动自愈: vault 快照被服务端判死时, 尝试接管 persist:pl 浏览器存储里的 cookie
+   *  (网页登录窗/官网请求的轮换都落在存储里, 可能比 vault 快照更新) —— 试验证通过才落地 */
+  async healFromStore(): Promise<boolean> {
+    try {
+      const cookies = await session.fromPartition(SESSION_PARTITION).cookies.get({ domain: '.pandalive.co.kr' })
+      const jar: CookieJar = {}
+      for (const c of cookies) jar[c.name] = c.value
+      if (!jar['sessKey']) return false
+      if (jar['sessKey'] === this.jar['sessKey']) return false // 与 vault 同源, 无愈可取
+      const info = await this.checkLoginInfo(jar)
+      if (!info.isLogin) return false
+      this.jar = jar
+      this.saveCookies()
+      this.clearPlayCache()
+      this.cookieValid = true
+      logger.info('api', `登录态自愈: 已接管本地浏览器存储的 cookie(${Object.keys(jar).length} 枚)`)
+      return true
+    } catch (e) {
+      logger.warn('api', `登录态自愈失败: ${String(e)}`)
+      return false
+    }
   }
 
   /** 拉一页全站直播列表; 响应带 loginInfo 可校验登录态; adultShowAdModeYN=Y 对认证账号开放 19+ 列表 */
