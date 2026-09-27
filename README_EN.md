@@ -1,5 +1,7 @@
 # PandaLive Monitor
 
+[简体中文](./README.md) | English
+
 > All-in-one desktop client for pandalive.co.kr (Windows · macOS · Linux): **live monitoring · watching · recording · replay**
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)

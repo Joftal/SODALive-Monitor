@@ -1,5 +1,7 @@
 # PandaLive Monitor
 
+中文 | [English](./README_EN.md)
+
 > pandalive.co.kr 直播 **监控 / 观看 / 录制 / 回放** 一体化桌面客户端（Windows · macOS · Linux)
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
