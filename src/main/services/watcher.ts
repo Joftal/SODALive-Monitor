@@ -18,6 +18,15 @@ import { mt } from '../i18n'
 const MAX_PAGES = 5
 const PAGE_SIZE = 100
 
+/** 平台 startTime("YYYY-MM-DD HH:MM:SS", 韩国时区) -> 已播秒数; 解析失败/未来时间归 0 */
+function liveElapsedSec(startTime: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/.exec(String(startTime || '').trim())
+  if (!m) return 0
+  const ts = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5], +m[6]) // KST=UTC+9
+  if (Number.isNaN(ts)) return 0
+  return Math.max(0, Math.floor((Date.now() - ts) / 1000))
+}
+
 class Watcher {
   running = false
   private timer: NodeJS.Timeout | null = null
@@ -143,7 +152,7 @@ class Watcher {
       this.pushAnchors()
     }
     logger.warn('watcher', `关注的主播查无此人(改名/注销/错 id): @${a.userId}`)
-    sendToast({ type: 'info', title: mt('watcher.bjGone', { id: a.userId }), body: mt('watcher.bjGoneHint') })
+    sendToast({ type: 'info', title: mt('watcher.bjGone', { id: a.userId }), body: mt('watcher.bjGoneHint') }, { ev: 'generic', ctx: { anchor: a, detail: mt('watcher.bjGoneHint') } })
   }
   /** 该锚点是否已确认不存在: true 则所有 bj 复查路径直接跳过(不再发请求) */
   private isGone(userId: string): boolean {
@@ -166,7 +175,7 @@ class Watcher {
       this.status.circuitOpen = true
       this.status.message = mt('watcher.circuit', { msg, minutes })
       logger.warn('watcher', this.status.message)
-      sendToast({ type: 'error', title: mt('watcher.circuitTitle'), body: this.status.message })
+      sendToast({ type: 'error', title: mt('watcher.circuitTitle'), body: this.status.message }, { ev: 'circuit', ctx: { detail: this.status.message } })
     } else {
       this.status.message = mt('watcher.roundFail', { msg })
       logger.warn('watcher', `本轮失败(#${this.errorStreak}): ${msg}`)
@@ -420,9 +429,9 @@ class Watcher {
     if (cfg.prefetchStream) this.enqueuePrewarm(a.userId) // 后台预取新源写缓存
     if (a.tags?.type === 'fan') {
       // 粉丝房开播: 专用通知(与普通开播区分, 仍进系统通知与应用内气泡)
-      sendToast({ type: 'fanLive', title: mt('watcher.fanLiveStart', { nick: a.nick }), body: a.title || mt('watcher.clickWatch') })
+      sendToast({ type: 'fanLive', title: mt('watcher.fanLiveStart', { nick: a.nick }), body: a.title || mt('watcher.clickWatch') }, { ev: 'fanLive', ctx: { anchor: a } })
     } else {
-      sendToast({ type: 'live', title: mt('watcher.liveStart', { nick: a.nick }), body: a.title || mt('watcher.clickWatch') })
+      sendToast({ type: 'live', title: mt('watcher.liveStart', { nick: a.nick }), body: a.title || mt('watcher.clickWatch') }, { ev: 'live', ctx: { anchor: a, liveSec: liveElapsedSec(a.startTime) } })
     }
     if (a.autoRecord) {
       // getSettings 恒返回对象(恒真判定已移除)
@@ -436,7 +445,7 @@ class Watcher {
     // 下播即频道死(实测: 之后 play 宽限期还会假发旧频道源, master 必 404) ——
     // 缓存源必须当场作废: 保活泵对已知下播不再心跳, 不清就会留死源骗"秒开"徽标, 点播放/录制必暴毙
     api.invalidatePlay(a.userId)
-    sendToast({ type: 'offline', title: mt('watcher.liveEnd', { nick: a.nick }), body: '' })
+    sendToast({ type: 'offline', title: mt('watcher.liveEnd', { nick: a.nick }), body: '' }, { ev: 'offline', ctx: { anchor: a, liveSec: liveElapsedSec(a.startTime) } })
   }
 
   private pushAnchors(): void {

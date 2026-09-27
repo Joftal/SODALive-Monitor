@@ -2,7 +2,8 @@ import { BrowserWindow, Notification } from 'electron'
 import { EV, Toast } from '../../shared/types'
 import { store } from './store'
 import { secrets } from './secrets'
-import { tgSendMessage } from './telegram'
+import { tgPush } from './telegram'
+import { TgCtx, TgEvent } from './tgFormat'
 import { logger } from './logger'
 import { mt } from '../i18n'
 
@@ -16,7 +17,18 @@ const TG_GATE: Record<Toast['type'], 'tgLive' | 'tgOffline' | 'tgRecord' | 'tgEr
   error: 'tgError'
 }
 
-export function sendToast(t: Toast): void {
+/** toast.type -> TG 卡片头兜底映射(调用方传显式 ev 优先: 同为 'error' 的熔断/录错语义不同) */
+const TG_EV_BY_TYPE: Record<Toast['type'], TgEvent> = {
+  live: 'live',
+  fanLive: 'fanLive',
+  offline: 'offline',
+  rec: 'recDone',
+  info: 'generic',
+  error: 'recError'
+}
+
+/** 可选第三参: 该事件的 TG 语义卡(显式事件名 + 主播/统计上下文) */
+export function sendToast(t: Toast, tg?: { ev: TgEvent; ctx: TgCtx }): void {
   // 1) 渲染层气泡
   const win = BrowserWindow.getAllWindows()[0]
   win?.webContents.send(EV.toast, t)
@@ -38,7 +50,7 @@ export function sendToast(t: Toast): void {
   if (cfg.tgChatId && cfg[TG_GATE[t.type]]) {
     const token = secrets.get('tgToken')
     if (token) {
-      void tgSendMessage(token, cfg.tgChatId, `🐼 ${t.title}\n${t.body}`).then((r) => {
+      void tgPush(token, cfg.tgChatId, tg?.ev ?? TG_EV_BY_TYPE[t.type], t, tg?.ctx ?? {}).then((r) => {
         if (!r.ok) logger.warn('tg', `${mt('tg.fail')}: ${r.message}`)
       })
     }

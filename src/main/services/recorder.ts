@@ -3,7 +3,7 @@ import { spawn, ChildProcessByStdio } from 'child_process'
 import { Readable, Writable } from 'stream'
 import * as fs from 'fs'
 import * as path from 'path'
-import { EV, RecHistoryItem, RecTask } from '../../shared/types'
+import { EV, Anchor, RecHistoryItem, RecTask } from '../../shared/types'
 import { api } from './pandalive'
 import { store } from './store'
 import { thumbs } from './thumbs'
@@ -80,6 +80,12 @@ export interface StartRecOptions {
   title: string
   password?: string
   auto?: boolean
+}
+
+/** TG 卡片主播上下文: 监控中取完整 Anchor(标签/头像), 已取关退回任务自带字段 */
+function tgAnchorOf(t: Task): Anchor {
+  const a = store.listAnchors().find((x) => x.userId === t.userId)
+  return { userId: t.userId, nick: t.nick, title: t.title, thumbUrl: t.thumbUrl, userImg: a?.userImg || '', tags: a?.tags ?? null } as unknown as Anchor
 }
 
 class Task implements RecTask {
@@ -444,8 +450,16 @@ class Task implements RecTask {
     // 后台生成视频库九宫格缩略图(串行队列, 不阻塞收尾)
     thumbs.enqueue(this.id)
 
-    if (status === 'done') sendToast({ type: 'rec', title: mt('rec.toastDone', { nick: this.nick }), body: mt('rec.segs', { n: this.files.length }) })
-    if (status === 'error') sendToast({ type: 'error', title: mt('rec.toastErr', { nick: this.nick }), body: this.error.slice(0, 120) })
+    if (status === 'done')
+      sendToast(
+        { type: 'rec', title: mt('rec.toastDone', { nick: this.nick }), body: mt('rec.segs', { n: this.files.length }) },
+        { ev: 'recDone', ctx: { anchor: tgAnchorOf(this), recSec: Math.round(((this.endedAt ?? Date.now()) - this.startedAt) / 1000), recMb: this.bytes / 1024 ** 2, files: this.files } }
+      )
+    if (status === 'error')
+      sendToast(
+        { type: 'error', title: mt('rec.toastErr', { nick: this.nick }), body: this.error.slice(0, 120) },
+        { ev: 'recError', ctx: { anchor: tgAnchorOf(this), recSec: Math.round(((this.endedAt ?? Date.now()) - this.startedAt) / 1000), recMb: this.bytes / 1024 ** 2, files: this.files, detail: this.error || failKind } }
+      )
 
     // 源失效自动续录(设置开启才生效): 仅"源死而主播仍在"类失败(停滞/中断)触发; 正常收尾给连续失败计数清白
     if (status === 'error') {
@@ -505,7 +519,7 @@ class Recorder {
     if (diskFreeGb(dir) < cfg.diskLimitGb) {
       const err = new Error(mt('rec.diskLow', { limit: cfg.diskLimitGb }))
       // 手动路径由 IPC 报错回传视图 message 反馈(单通道统一); 自动路径无人代答, 仍走事件气泡
-      if (opt.auto) sendToast({ type: 'error', title: mt('rec.failToast'), body: String(err.message) })
+      if (opt.auto) sendToast({ type: 'error', title: mt('rec.failToast'), body: String(err.message) }, { ev: 'recError', ctx: { detail: String(err.message) } })
       throw err
     }
     const task = new Task(opt, dir)
@@ -523,11 +537,15 @@ class Recorder {
         throw err
       }
       logger.warn('rec', `录制启动失败: ${opt.nick}(@${opt.userId})${opt.auto ? ' [自动]' : ''}: ${String((e as Error).message || e)}`)
-      if (opt.auto) sendToast({ type: 'error', title: mt('rec.toastStartFail', { nick: opt.nick }), body: String((e as Error).message || e) })
+      if (opt.auto)
+        sendToast(
+          { type: 'error', title: mt('rec.toastStartFail', { nick: opt.nick }), body: String((e as Error).message || e) },
+          { ev: 'recError', ctx: { anchor: { userId: opt.userId, nick: opt.nick, title: opt.title } as unknown as Anchor, detail: String((e as Error).message || e) } }
+        )
       throw e
     }
     // 手动开始: 视图已弹"开始录制"message, 不重复; 自动开始(开播自录/续录): 事件气泡通知到位
-    if (opt.auto) sendToast({ type: 'rec', title: mt('rec.toastStart', { nick: opt.nick }), body: opt.title || '' })
+    if (opt.auto) sendToast({ type: 'rec', title: mt('rec.toastStart', { nick: opt.nick }), body: opt.title || '' }, { ev: 'recStart', ctx: { anchor: store.listAnchors().find((x) => x.userId === opt.userId) ?? null } })
     this.emitUpdate()
     return Recorder.publicTask(task)
   }
@@ -570,13 +588,13 @@ class Recorder {
     let streak = healthy ? 0 : this.retryStreak.get(prev.userId) || 0
     if (streak >= Recorder.MAX_RETRY) {
       logger.warn('rec', `${prev.nick}(@${prev.userId}) 自动续录已连续失败 ${streak} 次, 停手(下个健康周期清白)`)
-      sendToast({ type: 'error', title: mt('rec.toastErr', { nick: prev.nick }), body: mt('rec.retryGiveUp', { n: streak }) })
+      sendToast({ type: 'error', title: mt('rec.toastErr', { nick: prev.nick }), body: mt('rec.retryGiveUp', { n: streak }) }, { ev: 'recError', ctx: { anchor: store.listAnchors().find((x) => x.userId === prev.userId) ?? null, detail: mt('rec.retryGiveUp', { n: streak }) } })
       return
     }
     streak += 1
     this.retryStreak.set(prev.userId, streak)
     logger.warn('rec', `${prev.nick}(@${prev.userId}) 源失效(${failKind}), 自动续录第 ${streak} 次`)
-    sendToast({ type: 'info', title: mt('rec.toastStart', { nick: prev.nick }), body: mt('rec.retryResume', { n: streak }) })
+    sendToast({ type: 'info', title: mt('rec.toastStart', { nick: prev.nick }), body: mt('rec.retryResume', { n: streak }) }, { ev: 'recStart', ctx: { anchor: store.listAnchors().find((x) => x.userId === prev.userId) ?? null, detail: mt('rec.retryResume', { n: streak }) } })
     // finalize(error) 已 invalidatePlay: 新任务必换新签名源 —— 这正是续录要解决的问题
     void this.start({ userId: prev.userId, nick: prev.nick, title: prev.title, password: prev.password, auto: true }).catch(() => {
       // start 失败已弹"启动失败"气泡; streak 保留, 待下个健康周期清白
