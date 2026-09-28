@@ -10,7 +10,7 @@
 [![Vue](https://img.shields.io/badge/vue-3-42b883)]()
 [![Release](https://img.shields.io/github/v/release/Joftal/pd-monitor)](https://github.com/Joftal/pd-monitor/releases)
 
-Built with **Electron + Vue 3**, card-style light UI. Aggregates every live channel on the platform — watch, record, and keep an eye on your favorite streamers; recordings are managed in a built-in **video library**.
+Built with **Electron + Vue 3**, card-style light UI. Aggregates every live channel on the platform — watch, record, and keep an eye on your favorite streamers (go-live / room-change alerts via **system notifications and in-app toasts**, with optional **Telegram Bot** push); recordings are managed in a built-in **video library**.
 
 
 
@@ -55,6 +55,7 @@ src/
 ├─ main/                  # main process
 │  ├─ index.ts            #   entry: window/tray/stream-domain Origin header injection/Chromium data redirected to app folder
 │  ├─ ipc.ts              #   IPC registration
+│  ├─ i18n.ts             #   main-process strings (toasts/tray menu)
 │  └─ services/
 │     ├─ pandalive.ts     #   API client: rate-limit queue + risk detection + dual stacks + proxy + source cache
 │     ├─ watcher.ts       #   polling engine: list mode + per-anchor + urgent/idle-pump fallback + circuit breaker
@@ -62,8 +63,11 @@ src/
 │     ├─ thumbs.ts        #   9-grid thumbnails: frame sampling + signature cache + file-set reconciliation + orphan sweep
 │     ├─ authWin.ts       #   web login window (event-driven)
 │     ├─ vault.ts         #   DPAPI-encrypted cookie vault
+│     ├─ secrets.ts       #   encrypted credential storage (TG bot token)
 │     ├─ store.ts         #   JSON persistence (follows/settings/history)
-│     ├─ notify.ts        #   in-app toasts + system notifications
+│     ├─ notify.ts        #   in-app toasts + system notifications + TG push entry
+│     ├─ telegram.ts      #   Telegram Bot push (own session + proxy + rate-limit handling)
+│     ├─ tgFormat.ts      #   TG message HTML card formatting
 │     ├─ logger.ts        #   runtime log files
 │     └─ localMedia.ts    #   plocal:// local media protocol (video + thumbnails)
 ├─ preload/index.ts       # contextBridge (window.api)

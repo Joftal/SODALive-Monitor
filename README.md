@@ -10,7 +10,7 @@
 [![Vue](https://img.shields.io/badge/vue-3-42b883)]()
 [![Release](https://img.shields.io/github/v/release/Joftal/pd-monitor)](https://github.com/Joftal/pd-monitor/releases)
 
-基于 **Electron + Vue 3**，卡片式浅色界面。聚合全站在播直播间，一键观看、一键录制、长期监控心仪主播；录制产物由内置**视频库**统一管理。
+基于 **Electron + Vue 3**，卡片式浅色界面。聚合全站在播直播间，一键观看、一键录制、长期监控心仪主播（开播/房态变更可推送**系统通知与应用内气泡**，并可选 **Telegram Bot** 推送）；录制产物由内置**视频库**统一管理。
 
 
 
@@ -56,6 +56,7 @@ src/
 ├─ main/                  # 主进程
 │  ├─ index.ts            #   入口: 窗口/托盘/流域名 Origin 头注入/Chromium 数据随程序目录
 │  ├─ ipc.ts              #   IPC 注册
+│  ├─ i18n.ts             #   主进程文案(通知/托盘菜单)
 │  └─ services/
 │     ├─ pandalive.ts     #   API 客户端: 限速队列 + 风控识别 + 双请求栈 + 代理 + 源缓存
 │     ├─ watcher.ts       #   轮询引擎: 列表模式 + 逐个模式 + urgent/间隙泵兜底 + 熔断退避
@@ -63,8 +64,11 @@ src/
 │     ├─ thumbs.ts        #   九宫格缩略图: 采样拼图 + 签名缓存 + 文件集对账 + 孤儿清扫
 │     ├─ authWin.ts       #   网页登录窗(事件驱动)
 │     ├─ vault.ts         #   DPAPI 加密 Cookie 保险箱
+│     ├─ secrets.ts       #   敏感凭据加密存储(TG bot token)
 │     ├─ store.ts         #   JSON 持久化(关注/设置/历史)
-│     ├─ notify.ts        #   应用内气泡 + 系统通知
+│     ├─ notify.ts        #   应用内气泡 + 系统通知 + TG 推送入口
+│     ├─ telegram.ts      #   Telegram Bot 推送(独立会话 + 代理 + 限频)
+│     ├─ tgFormat.ts      #   TG 消息 HTML 卡片格式化
 │     ├─ logger.ts        #   运行日志落盘
 │     └─ localMedia.ts    #   plocal:// 本地媒体协议(视频 + 缩略图)
 ├─ preload/index.ts       # contextBridge(window.api)
