@@ -1,7 +1,8 @@
 name: CI
 
 # 打包前的最低门槛: 类型检查 + 行为回归脚本(纯 Node, 不起 Electron, 无需 xvfb)
-# 发版流水线(release.yml)自带同样两步, 此工作流只为 push/PR 尽早出声
+# 行为回归链(设计契约/数据根/源缓存/保活泵/网络闸门/录制管线/设置写入链/回放全长/关注导入/图缓存/深链/通知)
+#   只在这里跑: 发版是从 main 切的, main 不绿就不该发, release.yml 不再抄第三遍
 #
 # Linux 侧成立性(2026-09-30 静态审查时链上 10 个 verify 脚本, 现为 12 个 —— 下面每一条
 #   对新增的 verify-netgate / verify-imgcache 也逐条复核过, 两条同样只 import Node 内置 + sucrase):

@@ -1056,7 +1056,9 @@ checkWithAllowlist(
   const en = fs.readFileSync(R('src', 'renderer', 'src', 'i18n', 'locales', 'en-US.ts'), 'utf8')
   const nav = fs.readFileSync(R('src', 'renderer', 'src', 'components', 'TopNav.vue'), 'utf8')
   assert(/function onKey\(e: KeyboardEvent\)/.test(wv) && /e\.key === '1'/.test(wv) && /getElementById\('global-search'\)/.test(wv) && /id="global-search"/.test(nav), 'D34a 快捷键本体仍在且指得到实物(1/2/3 切视图 · / 聚焦顶栏搜索)—— 撤的是提示, 不是功能')
-  const segRow = /<!-- 视图分段 -->\n\s*<div[\s\S]*?\n {4}<\/div>/.exec(wv)?.[0] ?? ''
+  // `\r?` 不是给 CRLF 开门: .gitattributes 已经把检出钉成 LF。这一处原先假定 `-->` 后面紧跟 `\n`,
+  // 于是同一份代码在一台 autocrlf=true 的机器上(Windows runner / 本地克隆)会假红成"代码变了"。
+  const segRow = /<!-- 视图分段 -->\r?\n\s*<div[\s\S]*?\r?\n {4}<\/div>/.exec(wv)?.[0] ?? ''
   assert(segRow.includes('sec-n') && segRow.includes('@click="setView(v)"'), 'D34b0 视图分段行解析面合理(分段按钮与计数都取到了)', `${segRow.length} 字节`)
   assert(!/keyHint/.test(wv + zh + en), 'D34c 提示文案三处净空(模板 + 双语键, 无消费方即删不留死键)')
   assert(!/flex-1/.test(segRow), 'D34d 分段行右侧不再挂东西(为一句灰字摆的撑开块一并撤, 不留空转的 flex-1)')
@@ -2743,7 +2745,8 @@ checkWithAllowlist(
   assert(
     /return url\.toString\(\)/.test(psi) &&
       /if \(\/\^\\d\+\$\/\.test\(u\.search\.slice\(1\)\)\) return u\.origin \+ u\.pathname/.test(ck) &&
-      /return url$/.test(ck) &&
+      // segTop 切到 `\n}` 为止, 所以片段结尾是 `return url` + 平台换行符: 裸 `$` 在 CRLF 副本上会假红
+      /return url\r?$/.test(ck) &&
       /const key = cacheKey\(url\)/.test(ld) && /fetchImage\(url\)/.test(ld) && !/fetchImage\(key\)/.test(ld) &&
       /const TTL_MS = 60_000/.test(ic) && /max-age=60/.test(ic),
     'D101j 键只抹 `?<纯数字>` 这一种形状(实测 28 间在播房的 thumbUrl 共用同一枚 ?29851761 ⇒ 那是上游逐轮推的全局计数, 不是这张图的身份), 其余 query 整条照旧进键; 取法仍用原地址(fetchImage 拿的是 url 而不是 key): 那句"抹平它等于卡片停在上一帧"已被"5 枚计数同一份字节 + 3.0 秒双绘字节相同"推翻, 停帧的上限从来是 TTL 那 60 秒(T2 是行为面)'
@@ -3753,7 +3756,6 @@ checkWithAllowlist(
     ['README.md', /verify-\*\.mjs 行为回归链\((\d+) 个\)/],
     ['README_EN.md', /(\d+) pure-Node scripts/],
     ['README_EN.md', /behaviour chain \((\d+)\)/],
-    ['.github/workflows/release.yml', /共 (\d+) 个脚本/],
     ['.github/workflows/ci.yml', /现为 (\d+) 个/]
   ]
   for (const [f, re] of DOC) {
@@ -3764,7 +3766,7 @@ checkWithAllowlist(
   const ENUM = [
     ['README.md', /个纯 Node 脚本\(([^)]*)\)/],
     ['README_EN.md', /pure-Node scripts \(([^)]*)\)/],
-    ['.github/workflows/release.yml', /行为回归链\(([^)]*)\)/]
+    ['.github/workflows/ci.yml', /行为回归链\(([^)]*)\)/]
   ]
   for (const [f, re] of ENUM) {
     const t = fs.readFileSync(R(f), 'utf8')
@@ -3772,6 +3774,11 @@ checkWithAllowlist(
     const items = m ? String(m[1]).split(',')[0].split('/').filter((x) => x.trim()).length : 0
     assert(items === n, `D114c ${f} 那份枚举逐个点名到 ${n} 套(只改数字不补名 = 读者仍然不知道 netgate/imgcache 这两套是谁)`, `项=${items}`)
   }
+  // D114d 分工的 fence: 打包流水线只做打包。验证从 release.yml 搬到只跑一份的 ci.yml 之后,
+  //   谁把 `npm run verify` 抄回三个矩阵作业, 这条就红 —— 那一趟的失败会把"哪份产物坏了"和
+  //   "哪条契约断了"混在一起, 而矩阵里三份同一步骤同一条链本来也只是把同一个红点抄三遍。
+  const relYml = fs.readFileSync(R('.github', 'workflows', 'release.yml'), 'utf8')
+  assert(!/npm run verify/.test(relYml), 'D114d release.yml 不再跑行为回归链(它是 ci.yml 那一趟的职责; 要搬回来先想清楚发版为什么需要抄三遍)')
 }
 
 // ============================================================================

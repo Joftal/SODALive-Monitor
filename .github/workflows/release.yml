@@ -105,9 +105,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      # 行为回归链(设计契约/数据根/源缓存/保活泵/网络闸门/录制管线/设置写入链/VOD 时长/关注导入/图缓存/深链/通知, 共 12 个脚本): 纯 Node, 不起 Electron
-      - name: Verify behaviour scripts
-        run: npm run verify
+      # 行为回归链(12 套)不在打包流水线上跑: 它是 CI(ci.yml)的职责, 发版是从 main 切的,
+      # main 不绿本来就不该发。这里再跑三遍只是把同一个红点抄三次, 还会让"哪份产物坏了"
+      # 和"哪条契约断了"混进同一次失败里。typecheck 留着是因为 build 不查它, 编译面出错要在这一趟响。
 
       - name: Build app bundle
         run: npm run build

@@ -1,0 +1,6 @@
+# 工作树一律 LF。
+# 本机 git 是 core.autocrlf=true, 它按自己的偏好把检出写成 CRLF, 于是回归链里两条按行读的断言
+# (`-->` 后紧跟换行、片段结尾就是某句 return)在代码一字未改时假红成"代码不对"。
+# 钉在这里之后谁的 autocrlf 都改不动工作树, 三平台检出同一份字节。
+# 全仓没有 .cmd/.bat/.ps1 这类必须 CRLF 的文件; 图片与 icns/ico 由 text=auto 自己判成二进制(实测逐字节同 blob)。
+* text=auto eol=lf
