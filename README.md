@@ -47,7 +47,7 @@ ELECTRON_MIRROR=https://cdn.npmmirror.com/binaries/electron/ FFMPEG_BINARIES_URL
 
 打包期不需要任何环境变量：electron 压缩包走 `electron-builder.yml` 的 `electronDownload.mirror`，nsis / winCodeSign 等工具链走 `package.json` 的 `config.electron_builder_binaries_mirror`。
 
-**CI**：`push` / `PR` 进 `main`·`dev` 自动跑 `typecheck` + `verify`（`.github/workflows/ci.yml`，纯 Node，不起 Electron）。
+**CI**：`push` / `PR` 进 `main` 自动跑 `typecheck` + `verify`（`.github/workflows/ci.yml`，纯 Node，不起 Electron）。
 
 **发版**：`Actions → Build & Release` 填版本号即可——自动把版本号写回 `package.json` 并提交（唯一版本源）、**三平台并行打包**(Windows NSIS/便携版 · macOS dmg/zip 双架构 · Linux AppImage/deb）并推送 Releases（tag: `v<版本号>`），应用内「检查更新」即读取该 tag。
 

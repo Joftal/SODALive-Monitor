@@ -119,8 +119,8 @@ function loadTs(rel) {
 const { imgCache } = loadTs('src/main/services/imgCache.ts')
 const { imgSrc, imgCacheable, parseImgSrc, IMG_CACHE_HOSTS } = loadTs('src/shared/imgUrl.ts')
 
-const LI = 'https://liveimg.sooplive.com/m/297572357'
-const ST = 'https://stimg.sooplive.com/LOGO/10/10042724/10042724.jpg'
+const LI = 'https://liveimg.sooplive.com/m/100000005'
+const ST = 'https://stimg.sooplive.com/LOGO/10/10000042/10000042.jpg'
 const reset = () => {
   imgCache.store.clear()
   imgCache.inflight.clear()

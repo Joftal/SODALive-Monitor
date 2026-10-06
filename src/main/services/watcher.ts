@@ -127,7 +127,7 @@ class Watcher {
   private soopBlindStreak = 0
   /** 留痕: 「整表读通了、而我这一间不在表里」那一支的房名账。这一支从前一个字都不出 ——
    *  `row === undefined` 既不走上面那句 logger(`if (row)` 把它挡在外面)，又被 `covered = anchors.length - probe.length`
-   *  从失明判据里扣掉，于是 hag1947 每天 ≈1,358 发整页在日志里是隐形的。
+   *  从失明判据里扣掉，于是某间关注每天 ≈1,358 发整页在日志里是隐形的。
    * 只记名不出声是不行的，逐轮报名也不行(那条老纪律: 常态是个位数、每轮同几个人，会把日志刷成计数器)
    *  ⇒ 只在**变化**那一点出声: 新掉出站内表报一次，回到表里报一次。 */
   private soopUnlisted = new Set<string>()

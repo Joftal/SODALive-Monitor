@@ -82,13 +82,13 @@ function gotoOther(): void {
       <p class="text-[12.5px] text-ink2 leading-relaxed">
         <template v-if="isSoop">
           {{ t('add.exampleSoop') }}<br />
-          <code class="font-mono text-brand text-[12px]">https://play.sooplive.com/1004ysus/297384679</code>
+          <code class="font-mono text-brand text-[12px]">https://play.sooplive.com/soopdemo01/100000001</code>
           <br /><span class="text-ink3">{{ t('add.soopLoginNote') }}</span>
         </template>
         <template v-else>
           {{ t('add.examplePanda') }}<br />
-          <code class="font-mono text-brand text-[12px]">https://www.pandalive.co.kr/play/zenith6666</code> {{ t('common.or') }}
-          <code class="font-mono text-brand text-[12px]">zenith6666</code>
+          <code class="font-mono text-brand text-[12px]">https://www.pandalive.co.kr/play/pandademo</code> {{ t('common.or') }}
+          <code class="font-mono text-brand text-[12px]">pandademo</code>
         </template>
       </p>
       <n-input v-model:value="raw" :placeholder="isSoop ? t('add.phSoop') : t('add.phPanda')" size="large" autofocus @keyup.enter="submit" />

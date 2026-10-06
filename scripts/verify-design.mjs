@@ -2358,7 +2358,7 @@ checkWithAllowlist(
   assert(/为什么不做占空比/.test(rs) && /要再减, 得先由用户认下时效那笔账/.test(rs), 'D76e 不改的理由写在代码里: 没有它, 下一份审计报告会把同一个"5.76 万发/天"再判一次, 而这一次的结论是"减发需授权"')
   assert(/const allFail = anchors\.length > 0 && covered === 0 && \(sent\.length > 0 \? fail === sent\.length : probe\.length > 0\)/.test(rs), 'D76f 失明判据与旧写法一字不差(留痕不改变任何判据): 这一轮的改动只加了一句日志, 冷却/连败/提醒的触发条件全部原样')
   assert(!/sent = \[\]/.test(rs.slice(rs.indexOf('let fail = 0'), rs.indexOf('const allFail'))), 'D76g 探针循环与失明判据之间不许再出现"把 sent 清空"那一格(只有风控冷却那一格有权这么做, 而它由 D64h 站岗)。 地标从 const covered 换成 const allFail —— covered 那一行上移到了探针之前, 再拿它当终点会切出一个空区间, 断言就变成白过')
-  // ①: 「整表读通而这一间不在里面」那一支从前既不出声也不进 covered, 于是 hag1947 一天 ≈1,358 发整页在日志里是隐形的
+  // ①: 「整表读通而这一间不在里面」那一支从前既不出声也不进 covered, 于是某间关注一天 ≈1,358 发整页在日志里是隐形的
   // 加第五用: 诊断台 ① 那一格要把名单读给屏幕(只读, 不改任何判据)。名册仍然只住 watcher 一处。
   assert(/private soopUnlisted = new Set<string>\(\)/.test(wt) && (wt.match(/this\.soopUnlisted/g) || []).length === 5 && /this\.soopUnlisted\.clear\(\)/.test(wt.slice(0, wt.indexOf('private async roundSoop('))), 'D76h 缺席名册只住 watcher 一处且五用途闭合(声明/clear/has+add/delete/诊断台只读一份), clear 必须在 roundSoop 之外的那一站(start): 报过的名册属本场会话, 重启后要重新出一份 —— 与 soopBlindStreak 同一本账')
   assert(/else if \(byId && !this\.soopUnlisted\.has\(a\.userId\)\) \{[\s\S]{0,200}不在站内关注表[\s\S]{0,160}probe\.push\(a\)/.test(rs) && (rs.match(/probe\.push\(a\)/g) || []).length === 1, 'D76i 出声只加在 else 那一支的边上(边沿触发: 掉出报一次), 而 probe.push 全轮只有一处且在 if 之外: 留痕不许把这一发吃掉, 也不许把它多推一遍 —— 减不减发是用户的三档, 不是这一格偷偷定的')

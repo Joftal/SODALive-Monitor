@@ -135,8 +135,8 @@ export default {
   add: {
     titlePanda: 'Follow a Panda streamer',
     titleSoop: 'Add a SOOP room',
-    phPanda: 'Streamer ID, e.g. zenith6666',
-    phSoop: 'Room URL or channel name, e.g. 1004ysus',
+    phPanda: 'Streamer ID, e.g. pandademo',
+    phSoop: 'Room URL or channel name, e.g. soopdemo01',
     examplePanda: 'Enter a streamer ID or paste a room URL, e.g.:',
     exampleSoop: 'Paste a room URL — the session number is optional (re-resolved each poll), e.g.:',
     soopLoginNote: 'Without SOOP login only public rooms are visible; log in on the Account page for 19+ / geo-blocked rooms',

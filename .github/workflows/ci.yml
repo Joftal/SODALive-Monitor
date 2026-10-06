@@ -13,9 +13,9 @@ name: CI
 #   内容一致性由 lock 里的 sha512 兜住, 代价只有延迟; 要换成 npmjs 源得整份重生成 lock, 不在本工作流范围。
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
   pull_request:
-    branches: [main, dev]
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}

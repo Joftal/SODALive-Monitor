@@ -138,8 +138,8 @@ export default {
   add: {
     titlePanda: '关注 Panda 主播',
     titleSoop: '添加 SOOP 房间',
-    phPanda: '主播 ID, 如 zenith6666',
-    phSoop: '播放地址或频道名, 如 1004ysus',
+    phPanda: '主播 ID, 如 pandademo',
+    phSoop: '播放地址或频道名, 如 soopdemo01',
     examplePanda: '输入主播 ID 或直接粘贴直播间链接, 例如:',
     exampleSoop: '粘贴房间播放地址, 场次号可省略(每次监控从页面重新解析), 例如:',
     soopLoginNote: 'SOOP 未登录只能看到部分公开房间, 19+ 与限区房间请先在「账号」页登录',
