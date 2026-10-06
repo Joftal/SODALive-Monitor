@@ -4,36 +4,74 @@
 
 :root {
   color-scheme: light;
-  /* 语义调色板(亮色默认); 深色主题在 .dark 下整体换值, tailwind 经 rgb(var) 引用 */
-  --c-page: 241 242 243; /* #f1f2f3 */
+  /* 语义调色板(亮色默认); 深色主题在 .dark 下整体换值, tailwind 经 rgb(var) 引用。
+     对比度为 WCAG 相对亮度实测(设计稿 S0.3): 正文级文字一律 ≥ 4.5:1 */
+  --c-page: 244 245 247; /* #f4f5f7 */
   --c-card: 255 255 255;
-  --c-line: 227 229 231; /* #e3e5e7 */
-  --c-ink1: 24 25 28; /* #18191c */
-  --c-ink2: 97 102 109; /* #61666d */
-  --c-ink3: 148 153 160; /* #9499a0 */
-  --c-fill: 244 245 247; /* ≈ gray-50 填充 */
-  --c-fillh: 236 238 241; /* ≈ gray-100 填充(hover 态) */
-  --shadow-card: rgba(0, 0, 0, 0.05);
-  --shadow-card-hover: rgba(0, 0, 0, 0.1);
+  --c-line: 228 231 235; /* #e4e7eb */
+  --c-ink1: 23 26 31; /* #171a1f · 17.4:1 */
+  --c-ink2: 90 98 112; /* #5a6270 · 6.75:1 */
+  --c-ink3: 102 111 123; /* #666f7b · 4.67:1 —— 旧 #9499a0 仅 2.64, 承载 11px 计数不达标 */
+  --c-deco: 152 160 172; /* #98a0ac · 仅装饰性字形(占位首字/提示图标), 不承载文字 */
+  --c-fill: 241 243 246; /* ≈ gray-50 填充 */
+  --c-fillh: 231 234 239; /* ≈ gray-100 填充(hover 态) */
+  /* 主色与状态色: brand 承担主题强调(原 #fb7299 同时是 Panda 平台色与"在播"语义, 三重含义冲突已拆分) */
+  --c-brand: 47 75 124; /* #2f4b7c · 8.68:1 主按钮/选中态/焦点环/下划线 */
+  --c-brand-hi: 58 92 150; /* #3a5c96 · hover */
+  --c-live: 229 72 77; /* #e5484d · 3.91:1 → 只做色点/图标/进度条, 禁止承载正文 */
+  --c-live-ink: 176 42 49; /* #b02a31 · 6.52:1 → 在播文字与徽标底 */
+  --c-ok: 47 173 95;
+  --c-ok-ink: 27 127 66; /* #1b7f42 */
+  --c-warn: 224 165 38;
+  --c-warn-ink: 143 100 0; /* #8f6400 */
+  --c-warn-bg: 255 248 231;
+  --shadow-card: rgba(16, 20, 28, 0.06);
+  --shadow-card-hover: rgba(16, 20, 28, 0.1);
   --scrollbar: #d6d9dd;
   --scrollbar-hover: #c1c6cc;
+  /* 平台身份色: 只给 6px 色点与徽标文字用, 不做整块底色(白字压 #fb7299 仅约 2.9:1) */
+  --plat-panda: #fb7299;
+  --plat-panda-ink: #b03a5c;
+  --plat-soop: #1b1d22;
+  --plat-soop-accent: #ffd400;
+  --plat-soop-ink: #6b5900;
+  /* 徽标压在封面上时的承托底: 半透明墨底, 白字对比度约 13:1 */
+  --tag-onimg: rgba(15, 17, 21, 0.72);
+  /* 暗场承载面(播放器遮罩 + 影院浮层): 底恒为黑, 不随主题换值。
+     live/liveink 是给卡面用的两档, 压黑都不达标(#e5484d 只有 4.1:1), 故暗场单独给一档亮红 */
+  --c-err-dark: 255 154 154; /* #ff9a9a · 压黑 ≈ 9.6:1 */
 }
 
 .dark {
   color-scheme: dark;
-  /* 参考 VSCode Dark Modern: 中性深灰(无蓝紫倾向), card=编辑器面 #1f1f1f, page=面板底 #181818 */
-  --c-page: 24 24 24; /* #181818 */
-  --c-card: 31 31 31; /* #1f1f1f */
-  --c-line: 43 43 43; /* #2b2b2b */
-  --c-ink1: 204 204 204; /* #cccccc, vscode foreground */
-  --c-ink2: 157 157 157; /* #9d9d9d */
-  --c-ink3: 128 128 128; /* #808080 */
-  --c-fill: 38 38 41; /* #262629(quickInput) */
-  --c-fillh: 49 49 50; /* #313132(≈input bg) */
+  --c-page: 20 22 26; /* #14161a */
+  --c-card: 29 32 36; /* #1d2024 */
+  --c-line: 44 49 56; /* #2c3138 —— 深色下描边是唯一可信边界, 卡片一律描边 */
+  --c-ink1: 230 232 235;
+  --c-ink2: 165 173 184;
+  --c-ink3: 138 146 158;
+  --c-deco: 92 100 111;
+  --c-fill: 35 39 45;
+  --c-fillh: 42 47 54;
+  /* 深色下主色提亮, 否则 #2f4b7c 压在 #1d2024 上只有 2.6:1 */
+  --c-brand: 127 166 224; /* #7fa6e0 */
+  --c-brand-hi: 147 180 234;
+  --c-live: 235 87 92;
+  --c-live-ink: 196 51 58;
+  --c-ok: 47 173 95;
+  --c-ok-ink: 108 211 145;
+  --c-warn: 224 165 38;
+  --c-warn-ink: 242 196 107;
+  --c-warn-bg: 42 35 20;
   --shadow-card: rgba(0, 0, 0, 0.5);
   --shadow-card-hover: rgba(0, 0, 0, 0.6);
-  --scrollbar: #3f3f46;
-  --scrollbar-hover: #515159;
+  --scrollbar: #3f444b;
+  --scrollbar-hover: #51575f;
+  /* 深色下浅底徽标自动换墨色, PlatTag 组件本身不写 dark: 分支 */
+  --plat-panda-ink: #ff8fb0;
+  --plat-soop-accent: #ffe14d;
+  --plat-soop-ink: #ffdf4a;
+  --tag-onimg: rgba(10, 11, 14, 0.82);
 }
 
 html,
@@ -48,7 +86,7 @@ body,
 }
 
 ::selection {
-  background: rgba(251, 114, 153, 0.22);
+  background: rgb(var(--c-brand) / 0.22);
 }
 
 /* naive-ui 供应商组件渲染真实 div, 必须占满高度否则整页链条被内容撑开导致无法滚动 */
@@ -64,7 +102,7 @@ body,
 }
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar);
-  border-radius: 8px;
+  border-radius: 999px; /* 8px 宽的滚动条: 与旧值 8px 同形, 但落在圆角档位上 */
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-hover);
@@ -101,6 +139,9 @@ body,
 /* 顶栏导航下划线动画 */
 .nav-tab {
   position: relative;
+  /* 最小窗宽(1024)下顶栏各段挤在一起: 不换行的话「直播」会竖排成两行, 整条 header 溢出 57px */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .nav-tab::after {
   content: '';
@@ -109,14 +150,18 @@ body,
   bottom: 0;
   width: 0;
   height: 3px;
-  border-radius: 3px;
-  background: #fb7299;
+  border-radius: 999px;
+  background: rgb(var(--c-brand));
   transform: translateX(-50%);
   transition: width 0.18s ease;
 }
 .nav-tab.active::after {
   width: 100%;
 }
+
+/* 计数/时长/码率一律走等宽数字: 每 30s 轮询刷新时列宽不抖, 整墙文字不跳。
+   写法只有 Tailwind 的 tabular-nums 一种 —— 这里曾另立过 .tnum 同义类,
+   两种拼法混用后「谁漏了一处」根本查不出来(设计稿 0.4 数字档)。 */
 
 /* ===== 按钮交互规范 ===== */
 /* 按压反馈: 整体居中缩放, 不做位移 */
@@ -136,7 +181,260 @@ body,
 /* 按钮加载态统一不用 naive :loading(绝对定位形态兼容差),
    全部改为内容区内 inline-flex + animate-spin 的自绘 spinner(见各视图实现) */
 
-/* 卡片标题两行截断 */
+/* ===== 控件状态表 · 焦点(设计稿 3.4) =====
+   键盘 Tab 到任何可聚焦控件必须看得见焦点, 且焦点环恒为主色 brand(红只留给在播/录制/错误)。
+   :focus-visible 只在键盘/程序化聚焦时命中, 鼠标点击不闪环; :where() 保持零特异性, 单点需要时可覆盖。
+   naive 的开关自己画 rail box-shadow, 再套一枚 outline 会变两圈, 故排除。 */
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible:not(.n-switch) {
+  outline: 2px solid rgb(var(--c-brand));
+  outline-offset: 2px;
+}
+
+/* ===== 控件状态表 · 禁用(设计稿 3.4) =====
+   自绘按钮(非 n-button)此前没有任何禁用形态: 灰字与可点字一模一样, 只能点了才发现没反应 */
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+/* ===== 键值行(设计稿 .kvrow) =====
+   侧栏/详情卡里「左标签 + 右值」的行式此前每处手写一遍 flex + 11.5px + py-1.5 + border-t，
+   六七个文件各写各的(标签 ink3/ink2、值 12px/11.5px、分隔线 line/50 或 line) —— 同一种东西长得不一样。
+   收成一个工具类: 行高、字号、标签色、值对齐与行间分隔线只有一处定义。 */
+.kv {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  padding: 6px 0;
+}
+.kv + .kv {
+  border-top: 1px solid rgb(var(--c-line) / 0.5);
+}
+.kv-k {
+  color: rgb(var(--c-ink3));
+  flex: none;
+}
+.kv-v {
+  color: rgb(var(--c-ink1));
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== 侧栏信息卡(设计稿 S5 的 .setcard) =====
+   「卡头标题 + 右侧说明 + 卡体」这一层此前在播放页三个卡里各写一遍(12.5/700 标题、11px ink3 说明、
+   px-3.5 pt-3 pb-2 卡头), 三处字号一致全靠肉眼。收成一处定义, 卡头说明与键值行共用同一套尺寸。 */
+.panel {
+  background: rgb(var(--c-card));
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.panel-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px 8px;
+}
+.panel-t {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: rgb(var(--c-ink1));
+}
+.panel-x {
+  font-size: 11px;
+  color: rgb(var(--c-ink3));
+  text-align: right;
+  min-width: 0;
+}
+.panel-b {
+  padding: 0 14px 12px;
+}
+
+/* ===== 进度条(设计稿 .meter) =====
+   全场只有一种细进度条: 5px / 端点全圆 / fillh 轨道 / brand 填充(状态色不参与进度)。
+   宽度由内联 style 给百分比; 未知总长时不画条, 由调用方显示「—」而不是画一根 0% 的死条。 */
+.meter {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+  background: rgb(var(--c-fillh));
+  overflow: hidden;
+}
+.meter i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: rgb(var(--c-brand));
+  transition: width 0.2s linear;
+}
+
+/* ===== 页头三件套(设计稿 .ph) =====
+   页面大标题此前五个视图三种写法(20/21px、font-bold/extrabold), 副说明只在录制页存在。
+   一页一个 h1、一个副行: 字号与字重在这里定死, 视图只写内容。 */
+.page-h {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: rgb(var(--c-ink1));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.page-sub {
+  font-size: 12.5px;
+  color: rgb(var(--c-ink3));
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+/* ===== 分组条(设计稿 .group>.bar) =====
+   「标题 + 计数 + 右侧工具」的段标题此前在录制/设置/账号三页各写一遍(13.5/14.5px、bold/extrabold、
+   计数有的裸字有的药丸)。收成一处: 标题 13px/800, 计数为 fill 药丸, 工具区右对齐 11.5px。 */
+.sec-h {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 800;
+  color: rgb(var(--c-ink1));
+  white-space: nowrap;
+}
+.sec-n {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: rgb(var(--c-ink3));
+  background: rgb(var(--c-fill));
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-variant-numeric: tabular-nums;
+}
+.sec-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 10px; /* 设计稿 0.4 点名的混用: 段距 22 与 20 并存, 废 22 */
+  flex-wrap: wrap;
+}
+.sec-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: rgb(var(--c-ink3));
+}
+/* 卡内分组小标题: 层级在 .sec-h(段)与正文(项)之间, 只做「这一组是什么」。
+   此前同一角色在设置页写了 6 遍(text-[11px] font-bold text-ink3 tracking-wide)。 */
+.grp-h {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgb(var(--c-ink3));
+}
+
+/* ===== 平台身份色点(单一规格) =====
+   同一个平台色点此前在顶栏分段(7px)、筛选 chip(6px)、徽标(5/6px + 各自的颜色描边环)、库的平台分解行
+   (7px 无描边环)各画一遍。SOOP 黄压白卡只有 1.43:1 —— 没描边环的那几处在浅色主题下几乎看不见,
+   而它承载的是「这是哪个平台」这一条信息(原则 R3: 状态要能用眼睛念出来)。
+   收成一处: 默认 7px(与卡面/控件同排), 徽标内 5px 档; 描边环恒为 ink3 ——
+   --c-line 只有 1.26:1 等于没描, ink3 在浅底 3.06:1 / 深底 4.1:1, 两主题都勾得出边。 */
+.pdot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: 0 0 0 1px rgb(var(--c-ink3));
+}
+.pdot-sm {
+  width: 5px;
+  height: 5px;
+}
+.pdot-panda {
+  background: var(--plat-panda);
+}
+.pdot-soop {
+  background: var(--plat-soop-accent);
+}
+
+/* ===== 筛选 chip(设计稿 .chip) =====
+   与 PlatFilter 的 .pf 同一套几何(27px / 12px / 圆角全圆 / line 描边), 区别只在选中态:
+   平台 chip 选中用中性底(不该用 A 平台的颜色代表 B 平台), 内容筛选 chip 选中用 brand。 */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 27px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid rgb(var(--c-line));
+  background: rgb(var(--c-card));
+  color: rgb(var(--c-ink2));
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.chip:hover {
+  border-color: rgb(var(--c-ink3));
+  color: rgb(var(--c-ink1));
+}
+.chip.on {
+  background: rgb(var(--c-brand) / 0.1);
+  border-color: rgb(var(--c-brand));
+  color: rgb(var(--c-brand));
+  font-weight: 700;
+}
+.chip .n {
+  font-size: 11px;
+  color: rgb(var(--c-deco));
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== 卡片墙 / 列表网格(设计稿 .grid / .ogrid) =====
+   minmax 与 gap 此前散在三个视图的内联 style 里(232/240 两种列宽 + 16/20/24 三种间距), 同一种墙三种呼吸。
+   列宽下限按设计稿 244: 卡片有 16:9 封面 + 两行文字, 再窄就要挤掉副行或让标题折行。 */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(244px, 1fr));
+  gap: 20px 18px;
+  grid-auto-rows: min-content;
+}
+
+/* ===== 徽标档位锁死(设计稿 3.3 R2) =====
+   两档高度写死: 卡片墙/缩略图/列表行 = sm(18)，页头/卡头 = md(21)。同一视野只允许一档。
+   高度不靠 py-* 堆: 此前各文件 py-[3px]/py-px 混用，同一面墙上长出 19/21/22/24 四种高度 */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex: none;
+  padding: 0 9px;
+}
+.badge-sm {
+  height: 18px;
+  font-size: 10.5px;
+  border-radius: 5px;
+  padding: 0 6px;
+}
+.badge-md {
+  height: 21px;
+  font-size: 11px;
+}
+
+/* 标题两行截断: 目前只有播放页大标题用(房间标题可达数十字, 单行会被截成看不懂的半句)。
+   卡片墙标题走单行 truncate —— 卡片高度要参与网格对齐, 两行会让整墙长短不齐。 */
 .clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;

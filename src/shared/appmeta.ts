@@ -1,7 +1,9 @@
 // ============ 应用元信息(关于页 / 检查更新共用) ============
 export const APP_META = {
-  name: 'PandaLive Monitor',
+  name: 'SODALive Monitor',
   author: 'Joftal',
+  /** 作者主页(GitHub 头像 = 该地址 + '.png', 关于页两处都从这里取, 不再各写一遍) */
+  authorUrl: 'https://github.com/Joftal',
   repo: 'https://github.com/Joftal/pd-monitor',
   releasesPage: 'https://github.com/Joftal/pd-monitor/releases'
 } as const

@@ -1,5 +1,6 @@
 import { session } from 'electron'
-import { api, nodeHttpRequest, proxyUrl } from './pandalive'
+import { nodeHttpRequest, proxyUrl } from './pandalive'
+import { sourceFor } from './source'
 import { store } from './store'
 import { UA, sleep } from '../util'
 import { logger } from './logger'
@@ -13,9 +14,9 @@ import { mt } from '../i18n'
 // 网络: 走独立 persist:tg 会话(不碰全局 API 会话的 cookie/代理), 代理经 tgProxy 设置单独指定;
 //       ERR_FAILED 回落 Node 直连(与 API 双栈同语义)。
 // 限频: Telegram 全局约 30 msg/s, 单 chat 1msg/s —— 本应用事件密度远低于此, 不做本地排队;
-//       429 时读 retry_after 静默丢弃当前条(开播风暴期宁可少发不误序重发)。
-// 格式: 结构化纯文本卡片(tgFormat 产 HTML: 头部加粗 + 房间/直播源链接), 不发图片;
-//       HTML 被拒(转义边角)自动去标签纯文本重发一次, 保证通知必达。
+//       429 读 parameters.retry_after 后静默丢弃当前条(开播风暴期宁可少发也不误序重发)。
+// 格式: 结构化卡片(tgFormat 产 HTML: 头部加粗 + 房间/直播源链接), 不发图片;
+//       仅当 HTML 语法本身被拒(400)才去标签重发一次纯文本; 其它失败(429/401/403/404)一律不重发。
 // =================================================
 
 const TG_API = 'https://api.telegram.org'
@@ -104,12 +105,26 @@ function cutUnits(s: string, max: number): string {
   return s.slice(0, end)
 }
 
-async function tgSend(t: string, c: string, text: string, parseMode = ''): Promise<{ ok: boolean; message: string }> {
+/** 发送结果: status/retryAfterSec 供上层分辨"该重发"与"该闭嘴" —— 只看 ok 会把限流当成格式问题 */
+type TgSendResult = { ok: boolean; message: string; status: number; retryAfterSec: number }
+
+async function tgSend(t: string, c: string, text: string, parseMode = ''): Promise<TgSendResult> {
   const body = formBody({ chat_id: c, text, disable_web_page_preview: 'true', ...(parseMode ? { parse_mode: parseMode } : {}) })
   const headers = { 'User-Agent': UA, 'Content-Type': 'application/x-www-form-urlencoded' }
   const r = await tgRequest(`${t}/sendMessage`, headers, body)
-  if (r.status !== 200) return { ok: false, message: httpsError(r.text, r.status) }
-  return parseOk(r.text)
+  if (r.status !== 200) {
+    // 429 的 retry_after 在 parameters 里(官方文档): 读到它就等于读到"这条现在必发不出去, N 秒后再来"
+    let retryAfterSec = 0
+    if (r.status === 429) {
+      try {
+        retryAfterSec = Number((JSON.parse(r.text) as { parameters?: { retry_after?: number } }).parameters?.retry_after || 0) || 0
+      } catch {
+        /* 错误体非 JSON: 仍按 429 处理, 只是不知道要等多久 */
+      }
+    }
+    return { ok: false, message: httpsError(r.text, r.status), status: r.status, retryAfterSec }
+  }
+  return { ...parseOk(r.text), status: r.status, retryAfterSec: 0 }
 }
 
 export async function tgSendMessage(token: string, chatId: string, text: string): Promise<{ ok: boolean; message: string }> {
@@ -133,8 +148,10 @@ export async function tgPush(token: string, chatId: string, ev: TgEvent, toast: 
   // master 令牌一回取即焚, 发出去必 403 —— 只在无变体时回退。getPlayCached 与预取泵/录制
   // 共享在途去重, 零增量请求(watcher 先 invalidatePlay 再弹卡, 命中必为新一场源)
   const full: TgCtx = { ...ctx }
-  if ((ev === 'live' || ev === 'fanLive' || ev === 'roomChange') && !full.streamUrl && ctx.anchor) {
-    await api
+  // 只有 pandalive 的源地址能往外贴: SOOP 的流是 127.0.0.1 本地代理地址(见 hlsProxy),
+  // 换台机器就是死链, 而 query 里还明文带着一次性上游取流凭证 —— 既不取(省一整条五步链)也不发
+  if ((ev === 'live' || ev === 'fanLive' || ev === 'roomChange') && !full.streamUrl && ctx.anchor?.platform === 'pandalive') {
+    await sourceFor(ctx.anchor.platform)
       .getPlayCached(ctx.anchor.userId)
       .then((p) => (full.streamUrl = p.ok ? p.variants?.[0]?.url || p.m3u8 || '' : ''))
       .catch(() => undefined)
@@ -144,11 +161,17 @@ export async function tgPush(token: string, chatId: string, ev: TgEvent, toast: 
   try {
     const r = await withTimeout(tgSend(t, c, card, 'HTML'))
     if (r.ok) return r
-    // HTML 被拒兜底: 去标签纯文本重发一次
+    // 只有一种失败值得换纯文本重发: HTML 语法被拒(400, 实体转义边角)。其余失败重发同一内容的另一份
+    // 拷贝不改变被拒的原因, 只会加倍流量与限流惩罚 —— 429 尤其: 平台已明说 retry_after 秒后再来,
+    // 秒发第二发只会把窗口拉长(严重的会短时间封 bot)。401/403/404 是配置坏了, 该出声而不是刷屏
+    if (r.status !== 400 || !/can't parse entities|entity|parse/i.test(r.message)) {
+      logger.warn('tg', `${mt('tg.fail')}: ${r.status === 429 ? mt('tg.rateLimited', { n: r.retryAfterSec || '?' }) : `HTTP ${r.status}`} | ${r.message}`)
+      return { ok: false, message: r.message }
+    }
     const plain = cutUnits(stripHtml(text), TEXT_MAX)
     const r2 = await withTimeout(tgSend(t, c, plain))
     if (!r2.ok) logger.warn('tg', `${mt('tg.fail')}: ${r.message} | ${r2.message}`)
-    return r2
+    return { ok: r2.ok, message: r2.message }
   } catch (e) {
     const msg = (e as Error).message || String(e)
     return { ok: false, message: msg === 'timeout' ? `timeout (${TG_TIMEOUT_MS / 1000}s)` : msg }

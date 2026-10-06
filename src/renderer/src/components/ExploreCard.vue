@@ -13,19 +13,20 @@ const props = defineProps<{ item: DiscoveryItem }>()
 const store = useAppStore()
 const message = useMessage()
 
-const following = computed(() => store.isFollowing(props.item.userId))
+const following = computed(() => store.isFollowing('pandalive', props.item.userId))
 
 const model = computed<LiveCardModel>(() => {
   const x = props.item
   return {
+    platform: 'pandalive', // 大厅只聚合 pandalive
     userId: x.userId,
     nick: x.nick,
     title: x.title || '',
     thumbUrl: x.thumbUrl || '',
     userImg: x.userImg || '',
     isLive: true, // 大厅条目恒在播
-    recording: store.isRecording(x.userId),
-    srcReady: store.isSrcReady(x.userId),
+    recording: store.isRecording('pandalive', x.userId),
+    srcReady: store.isSrcReady('pandalive', x.userId),
     following: following.value,
     isAdult: x.isAdult,
     isPw: x.isPw,
@@ -41,10 +42,10 @@ const model = computed<LiveCardModel>(() => {
 async function toggleFollow(): Promise<void> {
   try {
     if (following.value) {
-      await store.unfollow(props.item.userId)
+      await store.unfollow('pandalive', props.item.userId)
       message.success(t('card.unfollowed', { nick: props.item.nick }))
     } else {
-      await store.follow(props.item.userId)
+      await store.follow('pandalive', props.item.userId)
       message.success(t('card.followed', { nick: props.item.nick }))
     }
   } catch (e) {
@@ -54,11 +55,12 @@ async function toggleFollow(): Promise<void> {
 </script>
 
 <template>
-  <LiveCard :model="model">
+  <!-- 大厅只聚合 pandalive(数据源写死), 每卡一枚徽标信息量为 0: 平台身份由页头那枚代表 -->
+  <LiveCard :model="model" :show-platform="false">
     <template #hoverActions>
       <n-tooltip trigger="hover" :delay="300"><template #trigger>
         <button
-          class="w-8 h-8 rounded-lg bg-card/95 grid place-items-center shadow-md hover:scale-105 transition-transform"
+          class="w-8 h-8 rounded-ctl bg-card/95 grid place-items-center shadow-md hover:scale-105 transition-transform"
           :class="following ? 'text-live' : 'text-ink2'"
           @click.stop="toggleFollow"
         >

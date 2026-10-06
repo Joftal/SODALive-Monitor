@@ -39,7 +39,8 @@ const fakeFetch = async (url, init = {}) => {
   return { status: 200, text: async () => '#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:2.0,\ns1.ts\n', headers: { getSetCookie: () => [] } }
 }
 
-const db = { anchors: [], settings: { keepaliveStream: true, prefetchStream: true } }
+// prefetchStream 已进 monitor: 顶层那一格现在是未注册键, 引擎读不到 ⇒ 重铸路径会被静默跳过(假快)
+const db = { anchors: [], settings: { keepaliveStream: true, monitor: { pandalive: { pollIntervalSec: 30, requestGapMs: 300, prefetchStream: true }, soop: { pollIntervalSec: 30, requestGapMs: 300, prefetchStream: true } } } }
 const store = {
   listAnchors: () => db.anchors,
   getSettings: () => db.settings,
@@ -69,6 +70,7 @@ function loadTs(rel) {
   const localRequire = (id) => {
     if (id in mocks) return mocks[id]
     if (id === './pandalive') return loadTs('src/main/services/pandalive.ts')
+    if (id === './netGate') return loadTs('src/main/services/netGate.ts') // 车道挂真实现
     if (id === '../../shared/types') return loadTs('src/shared/types.ts')
     return require(id)
   }
@@ -77,7 +79,7 @@ function loadTs(rel) {
 }
 const { api } = loadTs('src/main/services/pandalive.ts')
 
-console.log('保活泵规模仿真 (心跳周期间隔常量 15s, CDN 单请求延迟 80ms)\n')
+console.log('保活泵规模仿真 (心跳周期间隔常量 60s, CDN 单请求延迟 80ms)\n')
 console.log('  N(房间) | 每轮耗时 | 有效心跳间隔/源 | 请求速率 | 日流量估算')
 console.log('---------|---------|----------------|---------|----------')
 
@@ -86,15 +88,15 @@ for (const N of [10, 25, 50, 100, 200]) {
   db.anchors.length = 0
   latencyMs = 0 // 播种零延迟
   for (let i = 0; i < N; i++) {
-    db.anchors.push({ userId: `u${i}`, isLive: true })
+    db.anchors.push({ platform: 'pandalive', userId: `u${i}`, isLive: true })
     await api.getPlayCached(`u${i}`)
   }
   latencyMs = 80 // 量测真延迟
   const t0 = Date.now()
   await api.keepaliveTick()
   const ms = Date.now() - t0
-  const beats = N * VARIANTS
-  const adaptiveWait = Math.min(120_000, Math.max(15_000, N * 400)) // 与 startKeepalive 自适应一致
+  const beats = N * 1 // 扇出收口: 每源一轮只读主档一发(旧写法 N × VARIANTS, 副档不靠心跳续命)
+  const adaptiveWait = Math.min(900_000, Math.max(300_000, N * 2000)) // 与 startKeepalive 自适应一致(基准 60s→5min, 0.4s/源→2s/源, 封顶 120s→900s)
   const effMs = Math.max(ms, adaptiveWait)
   const mbPerBeatKb = beats * 2.5 // 2.5KB/清单
   const mbPerDay = ((mbPerBeatKb * 24 * 3600 * 1000) / effMs / 1024).toFixed(0)
@@ -102,4 +104,4 @@ for (const N of [10, 25, 50, 100, 200]) {
     `  ${String(N).padStart(7)} | ${(ms / 1000).toFixed(1).padStart(7)}s | ${(effMs / 1000).toFixed(1).padStart(14)}s | ${(beats / (ms / 1000)).toFixed(1).padStart(7)}/s | ${mbPerDay} MB`
   )
 }
-console.log('\n注: 有效心跳间隔 = max(每轮实际耗时, 自适应间隔 min(120s, max(15s, N×0.4s))) — 4 泳道并发 + 规模自适应')
+console.log('\n注: 有效心跳间隔 = max(每轮实际耗时, 自适应间隔 min(900s, max(300s, N×2s))) — 4 泳道并发 + 规模自适应')

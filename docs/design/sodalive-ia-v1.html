@@ -1,0 +1,1850 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SODALive Monitor · 平台优先信息架构与视觉重构设计稿 v1</title>
+<style>
+  /* ============ 本稿令牌(对比度实测见 S0.3) ============ */
+  :root {
+    --brand: #2F4B7C; --brand-hi: #3A5C96; --brand-soft: rgba(47,75,124,.08);
+    --live: #E5484D; --live-ink: #B02A31;
+    --ok: #2FAD5F; --ok-ink: #1B7F42;
+    --warn: #E0A526; --warn-ink: #8F6400; --warn-bg: #FFF8E7;
+    --page: #F4F5F7; --card: #fff; --line: #E4E7EB; --fill: #F1F3F6; --fillh: #E7EAEF;
+    --ink1: #171A1F; --ink2: #5A6270; --ink3: #666F7B; --ink-deco: #98A0AC;
+    --panda: #FB7299; --panda-ink: #B03A5C;
+    --soop: #FFD400; --soop-ink: #6B5900; --soop-face: #1B1D22;
+    --tag-onimg: rgba(15,17,21,.72);
+    --r-card: 14px; --r-ctl: 10px; --r-badge: 6px; --r-pill: 999px;
+    --sh1: 0 1px 2px rgba(16,20,28,.06); --sh2: 0 6px 20px rgba(16,20,28,.10);
+  }
+  [data-theme=dark] {
+    --page: #14161A; --card: #1D2024; --line: #2C3138; --fill: #23272D; --fillh: #2A2F36;
+    --ink1: #E6E8EB; --ink2: #A5ADB8; --ink3: #8A929E; --ink-deco: #5C646F;
+    --brand: #7FA6E0; --brand-hi: #93B4EA; --brand-soft: rgba(127,166,224,.14);
+    --live-ink: #C4333A; --ok-ink: #6CD391; --warn-ink: #F2C46B; --warn-bg: #2A2314;
+    --panda-ink: #FF8FB0; --soop-ink: #FFDF4A;
+    --sh1: 0 0 0 1px #2C3138; --sh2: 0 8px 24px rgba(0,0,0,.5);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--page); color: var(--ink1); min-width: 1340px;
+         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei UI', 'PingFang SC', sans-serif;
+         -webkit-font-smoothing: antialiased; }
+  button { font-family: inherit; }
+
+  /* ============ 外壳: 屏幕切换器 ============ */
+  .switcher { position: sticky; top: 0; z-index: 90; background: #101319; color: #fff;
+              display: flex; align-items: center; gap: 5px; padding: 10px 20px; font-size: 12px; flex-wrap: wrap; }
+  .switcher .brand { font-weight: 800; letter-spacing: .04em; margin-right: 10px; color: #FFD400; }
+  .sw { background: rgba(255,255,255,.08); color: #CBD1DA; border: none; cursor: pointer;
+        height: 28px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .sw:hover { background: rgba(255,255,255,.16); color: #fff; }
+  .sw.on { background: #2F4B7C; color: #fff; }
+  .switcher .meta { margin-left: auto; color: #7E8694; font-size: 11.5px; }
+  .screen { display: none; }
+  .screen.on { display: block; }
+  .page { max-width: 1300px; margin: 0 auto; padding: 24px 28px 56px; }
+
+  h1.doc { font-size: 21px; font-weight: 800; letter-spacing: -.01em; }
+  .doc-sub { font-size: 12.5px; color: var(--ink2); margin-top: 6px; line-height: 1.85; }
+  .sec { display: flex; align-items: baseline; gap: 10px; padding: 0 2px 11px; margin-top: 32px; }
+  .sec h2 { font-size: 14px; font-weight: 800; white-space: nowrap; }
+  .h3 { font-size: 12.5px; font-weight: 800; letter-spacing: .02em; display: flex; align-items: center; gap: 7px; }
+  .h3 .num { color: var(--ink-deco); font-weight: 700; }
+  .sec .d { font-size: 11.5px; color: var(--ink3); margin-left: auto; max-width: 700px; text-align: right; line-height: 1.6; }
+  .note { background: var(--warn-bg); border: 1px solid #F0DFAE; border-radius: 10px; padding: 11px 15px;
+          font-size: 12px; color: var(--warn-ink); line-height: 1.8; }
+  .note b { font-weight: 800; }
+  .note.gray { background: var(--card); border-color: var(--line); color: var(--ink2); }
+  .note.gray b { color: var(--ink1); }
+  .note.blue { background: var(--brand-soft); border-color: rgba(47,75,124,.2); color: var(--brand); }
+  .note.blue b { color: var(--brand); }
+
+  /* ============ 表格 ============ */
+  table.spec { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card);
+               border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; font-size: 12px; }
+  table.spec th, table.spec td { text-align: left; padding: 9px 13px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.7; }
+  table.spec thead th { background: var(--fill); font-weight: 800; font-size: 11.5px; color: var(--ink2); }
+  table.spec tbody tr:last-child th, table.spec tbody tr:last-child td { border-bottom: none; }
+  table.spec th.k { font-weight: 700; color: var(--ink1); background: var(--card); width: 152px; white-space: nowrap; }
+  table.spec td.mono, table.spec th.mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 11.5px; }
+  .yes { color: var(--ok-ink); font-weight: 700; }
+  .no { color: var(--live-ink); font-weight: 700; }
+  .na { color: var(--ink-deco); }
+  code.tok { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; background: var(--fill);
+             border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; color: var(--ink1); }
+
+  /* ============ 应用外框 ============ */
+  .app { background: var(--card); border-bottom: 1px solid var(--line); padding: 0 20px; height: 62px;
+         display: flex; align-items: center; gap: 10px; }
+  .wordmark { line-height: 1.15; flex: none; }
+  .wordmark .w1 { font-size: 15.5px; font-weight: 700; }
+  .wordmark .w2 { font-size: 9.5px; color: var(--ink3); letter-spacing: .22em; font-weight: 600; }
+  .sepv { width: 1px; height: 26px; background: var(--line); flex: none; }
+  .platseg { display: inline-flex; background: var(--fill); border-radius: var(--r-pill); padding: 3px; gap: 2px; flex: none; }
+  .platseg button { border: none; cursor: pointer; background: transparent; height: 30px; padding: 0 15px;
+                    border-radius: var(--r-pill); font-size: 13px; font-weight: 700; color: var(--ink2);
+                    display: inline-flex; align-items: center; gap: 6px; }
+  .platseg button:hover { color: var(--ink1); }
+  .platseg button.on { background: var(--card); box-shadow: var(--sh1); }
+  .platseg button.on.p { color: var(--panda-ink); }
+  .platseg button.on.s { color: var(--soop-ink); }
+  .platseg .cdot { width: 7px; height: 7px; border-radius: 50%; }
+  .platseg .cdot.p { background: var(--panda); }
+  .platseg .cdot.s { background: var(--soop); }
+  .platseg .badge { min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: var(--live);
+                    color: #fff; font-size: 10.5px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+  .navtab { padding: 0 14px; font-size: 13.5px; color: var(--ink2); height: 62px; display: flex; align-items: center;
+            gap: 6px; cursor: pointer; position: relative; white-space: nowrap; }
+  .navtab:hover { color: var(--ink1); }
+  .navtab.on { color: var(--ink1); font-weight: 700; }
+  .navtab.on::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 0; height: 2.5px; background: var(--brand); border-radius: 999px 999px 0 0; }
+  .navtab .cnt { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--brand-soft);
+                 color: var(--brand); font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+  .navtab .cnt.red { background: rgba(229,72,77,.12); color: var(--live-ink); }
+  .searchbox { flex: 1; display: flex; justify-content: center; position: relative; }
+  .searchbox input { width: 100%; max-width: 400px; height: 38px; border-radius: var(--r-pill); border: 1px solid var(--line);
+                     background: var(--fill); padding: 0 16px 0 36px; font-size: 13px; color: var(--ink1); outline: none; font-family: inherit; }
+  .searchbox svg { position: absolute; left: calc(50% - 182px); top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--ink-deco); }
+  .state-pill { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: var(--r-pill);
+                background: var(--brand-soft); color: var(--brand); font-size: 11.5px; font-weight: 700; flex: none; }
+  .state-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--brand); display: block; }
+  .state-pill.cool { background: rgba(224,165,38,.14); color: var(--warn-ink); }
+  .state-pill.cool i { background: var(--warn); }
+  .state-pill.err { background: rgba(229,72,77,.12); color: var(--live-ink); }
+  .state-pill.err i { background: var(--live); }
+  .av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800;
+        color: #fff; background: linear-gradient(135deg, var(--brand), #5E7DB8); flex: none; }
+  .av.p { background: linear-gradient(135deg, var(--panda), #d879d0); }
+  .av.s { background: #0F1115; color: var(--soop); }
+  .wctl { display: flex; align-items: center; gap: 1px; color: var(--ink-deco); font-size: 13px; flex: none; margin-left: 4px; }
+  .wctl span { width: 28px; height: 24px; display: grid; place-items: center; border-radius: 6px; }
+
+  /* ============ 页面骨架 ============ */
+  .body { background: var(--page); padding: 20px 26px 28px; }
+  .ph { display: flex; align-items: flex-start; gap: 12px; }
+  .ph h3 { font-size: 17px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+  .ph .sub { font-size: 12.5px; color: var(--ink3); margin-top: 4px; }
+  .ph .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .group { margin-top: 22px; }
+  .group > .bar { display: flex; align-items: center; gap: 9px; padding: 0 2px 11px; }
+  .group > .bar h4 { font-size: 13px; font-weight: 800; display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .group > .bar h4 .n { font-size: 11.5px; font-weight: 700; color: var(--ink3); background: var(--fill); border-radius: var(--r-pill); padding: 2px 8px; }
+  .group > .bar h4 .cdot { width: 8px; height: 8px; border-radius: 50%; background: var(--live); }
+  .group > .bar h4 .cdot.off { background: var(--ink-deco); }
+  .group > .bar .tools { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--ink3); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: none; cursor: pointer;
+         border-radius: var(--r-ctl); font-size: 12.5px; font-weight: 600; padding: 7px 15px; transition: all .15s; }
+  .btn-primary { background: var(--brand); color: #fff; }
+  .btn-primary:hover { background: var(--brand-hi); }
+  .btn-ghost { background: transparent; color: var(--ink2); border: 1px solid var(--line); font-weight: 500; }
+  .btn-ghost:hover { background: var(--fill); color: var(--ink1); }
+  .btn-sm { height: 28px; padding: 0 11px; font-size: 12px; border-radius: 10px; }
+  .btn-danger-ghost { background: transparent; border: 1px solid rgba(229,72,77,.35); color: var(--live-ink); font-weight: 600; }
+
+  .chip { display: inline-flex; align-items: center; gap: 5px; height: 27px; padding: 0 11px; border-radius: var(--r-pill);
+          font-size: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink2); cursor: pointer; white-space: nowrap; }
+  .chip .n { font-size: 11px; color: var(--ink-deco); }
+  .chip.on { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); font-weight: 700; }
+  .sortu { font-size: 12.5px; padding-bottom: 4px; border-bottom: 2px solid transparent; color: var(--ink2); cursor: pointer; white-space: nowrap; }
+  .sortu.on { color: var(--brand); font-weight: 700; border-color: var(--brand); }
+
+  .pt { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--r-badge); font-weight: 800; white-space: nowrap; }
+  .pt .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .pt.p .dot { background: var(--panda); }
+  .pt.s .dot { background: var(--soop); }
+  .pt.onimg { background: var(--tag-onimg); color: #fff; }
+  .pt.onsurf { background: var(--fill); color: var(--ink1); border: 1px solid var(--line); }
+  .pt.onsurf.p { color: var(--panda-ink); }
+  .pt.onsurf.s { color: var(--soop-ink); }
+  .pt.md { height: 21px; padding: 0 7px; font-size: 11px; }
+  .pt.sm { height: 18px; padding: 0 6px; font-size: 10.5px; border-radius: 5px; gap: 4px; }
+  .pt.sm .dot { width: 5px; height: 5px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(244px, 1fr)); gap: 20px 18px; }
+  .lc { background: var(--card); border-radius: var(--r-card); overflow: hidden; box-shadow: var(--sh1); border: 1px solid var(--line); }
+  .lc:hover { box-shadow: var(--sh2); }
+  .thumb { position: relative; aspect-ratio: 16/9; background: linear-gradient(135deg, #C7CED8, #E4E8EE); overflow: hidden; }
+  .thumb.dark { background: linear-gradient(135deg, #262A31, #3D424A); }
+  .thumb .g { position: absolute; inset: 0; display: grid; place-items: center; font-size: 24px; font-weight: 900; color: rgba(23,26,31,.13); letter-spacing: .06em; }
+  .thumb.dark .g { color: rgba(255,255,255,.15); }
+  .badges { position: absolute; top: 8px; left: 8px; display: flex; gap: 6px; align-items: center; }
+  .b-live { display: inline-flex; align-items: center; gap: 5px; background: var(--live-ink); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 5px; }
+  .b-live i { width: 6px; height: 6px; border-radius: 50%; background: #fff; display: block; }
+  .b-off { background: rgba(15,17,21,.55); color: rgba(255,255,255,.88); font-size: 11px; padding: 3px 8px; border-radius: 5px; }
+  .b-rec { display: inline-flex; align-items: center; gap: 5px; background: rgba(15,17,21,.68); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 5px; }
+  .b-rec i { width: 6px; height: 6px; border-radius: 50%; background: #FF4D52; display: block; }
+  .b-ready { display: inline-flex; align-items: center; gap: 4px; background: var(--ok); color: #fff; font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 5px; }
+  .b-19 { position: absolute; top: 8px; right: 8px; background: rgba(176,42,49,.92); color: #fff; font-size: 11px; font-weight: 800; padding: 3px 6px; border-radius: 5px; }
+  .b-pw { position: absolute; top: 34px; right: 8px; background: var(--tag-onimg); color: #fff; font-size: 10.5px; font-weight: 700; padding: 3px 6px; border-radius: 5px; }
+  .lc-body { padding: 10px 12px 11px; }
+  .lc-title { font-size: 13.5px; font-weight: 600; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lc-host { display: flex; align-items: center; gap: 7px; margin-top: 8px; }
+  .lc-host .ava { width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(135deg, #CFD5DE, #E7EBF1); flex: none; }
+  .lc-host .nick { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lc-host .uid { font-size: 11.5px; color: var(--ink3); margin-left: auto; flex: none; font-variant-numeric: tabular-nums; }
+  .lc-stats { display: flex; align-items: center; gap: 11px; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line);
+              font-size: 11.5px; color: var(--ink3); font-variant-numeric: tabular-nums; }
+  .lc-stats .kv { display: inline-flex; align-items: center; gap: 4px; }
+  .lc-stats .dur { margin-left: auto; color: var(--ink2); font-weight: 600; }
+  .lc-acts { display: flex; gap: 7px; margin-top: 10px; }
+  .lc-acts .btn { flex: 1; }
+
+  .ogrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(332px, 1fr)); gap: 9px; }
+  .orow { display: flex; align-items: center; gap: 11px; padding: 10px 14px; border-radius: var(--r-card);
+          background: var(--card); border: 1px solid var(--line); box-shadow: var(--sh1); }
+  .orow:hover { border-color: var(--brand); }
+  .orow .ava { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #CFD5DE, #E7EBF1); flex: none; filter: grayscale(.45); }
+  .orow .m { min-width: 0; flex: 1; }
+  .orow .n1 { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .orow .n2 { font-size: 11px; color: var(--ink3); display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+  .orow .n2 .stale { color: var(--warn-ink); font-weight: 600; }
+  .orow .acts { display: flex; align-items: center; gap: 6px; flex: none; }
+  .sw2 { width: 30px; height: 17px; border-radius: 999px; background: var(--fillh); position: relative; flex: none; cursor: pointer; }
+  .sw2::after { content: ''; position: absolute; left: 2px; top: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+  .sw2.on { background: var(--brand); }
+  .sw2.on::after { left: 15px; }
+  .iconbtn { width: 26px; height: 26px; border-radius: 10px; display: grid; place-items: center; color: var(--ink-deco); border: none; background: transparent; cursor: pointer; font-size: 12px; }
+  .iconbtn:hover { background: var(--fill); color: var(--ink2); }
+  .iconbtn.del:hover { background: rgba(229,72,77,.1); color: var(--live-ink); }
+
+  .guide { display: flex; align-items: center; gap: 16px; background: var(--card); border: 1px dashed var(--line);
+           border-radius: var(--r-card); padding: 16px 18px; }
+  .guide .ico { width: 40px; height: 40px; border-radius: 10px; background: var(--brand-soft); color: var(--brand);
+                display: grid; place-items: center; flex: none; font-size: 18px; font-weight: 800; }
+  .guide .tx { min-width: 0; }
+  .guide .tx .t1 { font-size: 13px; font-weight: 700; }
+  .guide .tx .t2 { font-size: 11.5px; color: var(--ink3); margin-top: 3px; line-height: 1.7; }
+  .guide .acts { margin-left: auto; display: flex; gap: 8px; flex: none; }
+
+  .banner { display: flex; align-items: center; gap: 10px; border-radius: var(--r-ctl); padding: 10px 14px; font-size: 12px; line-height: 1.65; }
+  .banner.warn { background: var(--warn-bg); border: 1px solid #F0DFAE; color: var(--warn-ink); }
+  .banner.err { background: rgba(229,72,77,.07); border: 1px solid rgba(229,72,77,.28); color: var(--live-ink); }
+  .banner.info { background: var(--brand-soft); border: 1px solid rgba(47,75,124,.18); color: var(--brand); }
+  .banner .acts { margin-left: auto; display: flex; gap: 7px; flex: none; }
+
+  .anatomy { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
+  .slots { display: flex; flex-direction: column; gap: 7px; }
+  .slot { display: flex; gap: 10px; align-items: flex-start; background: var(--card); border: 1px solid var(--line);
+          border-radius: 10px; padding: 8px 11px; font-size: 11.5px; color: var(--ink2); line-height: 1.65; }
+  .slot .no2 { width: 20px; height: 20px; border-radius: 6px; background: var(--brand); color: #fff; font-size: 10px; font-weight: 800;
+               display: grid; place-items: center; flex: none; margin-top: 1px; }
+  .slot b { color: var(--ink1); font-weight: 700; }
+
+  .task { display: flex; align-items: center; gap: 14px; background: var(--card); border: 1px solid var(--line);
+          border-radius: var(--r-card); padding: 13px 16px; box-shadow: var(--sh1); }
+  .task + .task { margin-top: 9px; }
+  .task .th2 { width: 96px; aspect-ratio: 16/9; border-radius: 10px; background: linear-gradient(135deg, #262A31, #3D424A); flex: none;
+               display: grid; place-items: center; color: rgba(255,255,255,.5); font-size: 10px; font-weight: 800; letter-spacing: .05em; }
+  .task .m { min-width: 0; flex: 1; }
+  .task .row1 { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+  .task .row2 { display: flex; align-items: center; gap: 14px; margin-top: 7px; font-size: 11.5px; color: var(--ink3); font-variant-numeric: tabular-nums; }
+  .task .row2 .k { color: var(--ink-deco); }
+  .meter { height: 5px; border-radius: 999px; background: var(--fillh); overflow: hidden; display: block; }
+  .meter i { display: block; height: 100%; border-radius: 999px; background: var(--brand); }
+  .pipe { display: flex; align-items: center; gap: 5px; flex: none; }
+  .pipe .p { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 5px;
+             background: var(--fill); color: var(--ink3); font-size: 10.5px; font-weight: 700; }
+  .pipe .p.on { background: var(--brand); color: #fff; }
+  .pipe .a { color: var(--ink-deco); font-size: 10px; }
+
+  .setgroup { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; }
+  .setgroup + .setgroup { margin-top: 14px; }
+  .sethead { padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--fill); }
+  .sethead .t { font-size: 12.5px; font-weight: 800; }
+  .sethead .s { font-size: 11.5px; color: var(--ink3); margin-top: 3px; line-height: 1.6; }
+  .srow { display: flex; align-items: center; gap: 14px; padding: 11px 16px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+  .srow:last-child { border-bottom: none; }
+  .srow .lab { width: 226px; flex: none; }
+  .srow .lab .l { font-weight: 600; }
+  .srow .lab .d { font-size: 11px; color: var(--ink3); margin-top: 3px; line-height: 1.6; }
+  .srow .after { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none; }
+  .seg { display: inline-flex; background: var(--fill); border: 1px solid var(--line); border-radius: 10px; padding: 2px; gap: 2px; }
+  .seg button { border: none; background: transparent; cursor: pointer; height: 26px; padding: 0 12px; border-radius: 6px; font-size: 12px; color: var(--ink2); font-weight: 600; }
+  .seg button.on { background: var(--card); box-shadow: var(--sh1); color: var(--brand); }
+  .ro { height: 30px; padding: 0 11px; border-radius: 10px; background: var(--fill); border: 1px solid var(--line);
+       color: var(--ink2); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
+  .ro b { color: var(--ink1); font-variant-numeric: tabular-nums; }
+
+  .player { display: grid; grid-template-columns: 1fr 300px; gap: 16px; }
+  .stage { background: #0E1116; border-radius: var(--r-card); aspect-ratio: 16/9; position: relative; overflow: hidden; }
+  .stage .center { position: absolute; inset: 0; display: grid; place-items: center; color: #6C7480; font-size: 12.5px; text-align: center; line-height: 1.8; }
+  .stage .ctrls { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 14px 11px;
+                  background: linear-gradient(transparent, rgba(0,0,0,.72)); color: #fff; display: flex; align-items: center; gap: 10px; font-size: 11.5px; }
+  .side-panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; }
+  .kvrow { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--line); font-size: 12px; }
+  .kvrow:last-child { border-bottom: none; }
+  .kvrow .k { color: var(--ink3); width: 82px; flex: none; }
+  .kvrow .v { color: var(--ink1); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .kvrow .v.na { color: var(--ink-deco); font-weight: 500; }
+  .kvrow .v.mono { font-family: ui-monospace, Consolas, monospace; font-weight: 500; }
+
+  .cap { font-size: 11.5px; font-weight: 800; letter-spacing: .04em; margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
+  .cap .tagold { background: rgba(90,98,112,.13); color: var(--ink2); border-radius: 5px; padding: 2px 7px; font-size: 10.5px; }
+  .cap .tagnew { background: rgba(47,173,95,.14); color: var(--ok-ink); border-radius: 5px; padding: 2px 7px; font-size: 10.5px; }
+  .cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  .frame { border: 1px solid var(--line); border-radius: var(--r-card); overflow: hidden; background: var(--card); box-shadow: var(--sh1); }
+  .frame .app { height: 46px; padding: 0 10px; gap: 5px; }
+  .frame .navtab { font-size: 11px; padding: 0 7px; height: 46px; }
+  .frame .wordmark .w1 { font-size: 11.5px; } .frame .wordmark .w2 { display: none; }
+  .frame .platseg { padding: 2px; } .frame .platseg button { height: 22px; padding: 0 8px; font-size: 11px; gap: 4px; }
+  .frame .searchbox input { height: 26px; font-size: 10.5px; max-width: 150px; }
+  .frame .state-pill { height: 20px; font-size: 10px; padding: 0 7px; }
+  .frame .av { width: 22px; height: 22px; font-size: 9px; }
+  .frame .wctl { display: none; }
+  .frame .body { padding: 10px 12px 14px; }
+  .frame .ph h3 { font-size: 12px; } .frame .ph .sub { font-size: 9.5px; }
+  .frame .grid { grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); gap: 10px 8px; }
+  .frame .lc-title { font-size: 10.5px; } .frame .lc-body { padding: 7px 8px 8px; }
+  .frame .lc-stats, .frame .lc-acts { display: none; }
+  .frame .ogrid { grid-template-columns: 1fr; gap: 6px; }
+  .frame .orow { padding: 7px 9px; } .frame .orow .n1 { font-size: 11px; } .frame .orow .n2 { font-size: 9.5px; }
+  .frame .group { margin-top: 12px; } .frame .group > .bar { padding-bottom: 6px; }
+  .frame .group > .bar h4 { font-size: 11px; } .frame .group > .bar .tools { display: none; }
+
+  .tokgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .tok { background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .tok .swatch { height: 44px; display: flex; align-items: flex-end; padding: 6px 10px; color: #fff; font-size: 11px; font-weight: 800; }
+  .tok .info { padding: 8px 10px; font-size: 11px; color: var(--ink2); line-height: 1.6; }
+  .tok .info b { color: var(--ink1); font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; }
+  .tok .ratio { display: inline-block; margin-top: 4px; font-size: 10.5px; font-weight: 800; color: var(--ok-ink); }
+
+  /* ============ 工作区: 视图分段 ============ */
+  .viewtabs { display: flex; align-items: center; gap: 4px; margin-top: 14px; border-bottom: 1px solid var(--line); }
+  .vt { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border: none; background: transparent; cursor: pointer;
+        font-size: 13.5px; font-weight: 600; color: var(--ink2); position: relative; white-space: nowrap; }
+  .vt:hover { color: var(--ink1); }
+  .vt.on { color: var(--brand); font-weight: 800; }
+  .vt.on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2.5px; background: var(--brand); border-radius: 999px 999px 0 0; }
+  .vt .n { font-size: 11.5px; font-weight: 700; color: var(--ink3); background: var(--fill); border-radius: var(--r-pill); padding: 2px 7px; }
+  .vt.on .n { color: var(--brand); background: var(--brand-soft); }
+  .vt .cdot { width: 7px; height: 7px; border-radius: 50%; background: var(--live); }
+  .vt .lock { font-size: 10.5px; color: var(--ink-deco); background: var(--fill); border-radius: 5px; padding: 2px 6px; }
+
+  /* 账号页 */
+  .acc-hero { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: 16px 18px; display: flex; align-items: center; gap: 14px; box-shadow: var(--sh1); }
+  .acc-hero .tile { width: 42px; height: 42px; border-radius: 10px; display: grid; place-items: center; flex: none; font-size: 17px; font-weight: 800; }
+  .acc-hero .tile.ok { background: rgba(47,173,95,.13); color: var(--ok-ink); }
+  .acc-hero .tile.warn { background: rgba(224,165,38,.15); color: var(--warn-ink); }
+  .acc-hero .tile.none { background: var(--fill); color: var(--ink3); }
+  .acc-hero .st { font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 7px; }
+  .acc-hero .st .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .acc-hero .ds { font-size: 12px; color: var(--ink3); margin-top: 4px; line-height: 1.65; }
+  .acc-hero .right { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none; }
+  .method { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); padding: 15px 17px; box-shadow: var(--sh1); }
+  .method + .method { margin-top: 10px; }
+  .method.on { border-color: var(--brand); }
+  .method .mh { display: flex; align-items: center; gap: 10px; }
+  .method .mi { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--fill); color: var(--ink2); flex: none; font-size: 13px; }
+  .method .mh .t { font-size: 14px; font-weight: 800; }
+  .method .ms { font-size: 12px; color: var(--ink3); margin-top: 8px; line-height: 1.7; }
+  .method .feat { display: flex; gap: 14px; margin-top: 9px; font-size: 11.5px; color: var(--ink2); flex-wrap: wrap; }
+  .method .feat span { display: inline-flex; align-items: center; gap: 5px; }
+  .method .feat i { width: 5px; height: 5px; border-radius: 50%; background: var(--ok); display: block; }
+  .method .mfoot { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .method .mfoot .hint { font-size: 11px; color: var(--ink3); }
+  .method .mfoot .btn { margin-left: auto; }
+  .steps { display: flex; flex-direction: column; gap: 7px; }
+  .steps li { list-style: none; display: flex; gap: 9px; font-size: 12px; color: var(--ink2); line-height: 1.6; }
+  .steps li .no3 { width: 18px; height: 18px; border-radius: 50%; background: var(--brand-soft); color: var(--brand); font-size: 10.5px; font-weight: 800; display: grid; place-items: center; flex: none; margin-top: 1px; }
+  .cookie-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; }
+  .ta { border: 1px solid var(--line); border-radius: 10px; background: var(--fill); padding: 10px 12px; font-size: 11.5px; color: var(--ink-deco); font-family: ui-monospace, Consolas, monospace; min-height: 78px; line-height: 1.7; }
+  .inp { border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 0 11px; height: 30px; font-size: 12px; color: var(--ink1); display: inline-flex; align-items: center; }
+  .inp.pw { color: var(--ink-deco); letter-spacing: .18em; }
+
+  /* 布局方案对比: 线框缩略 */
+  .wire { border: 1px solid var(--line); border-radius: 10px; background: var(--card); overflow: hidden; }
+  .wire .wbar { height: 20px; background: var(--fill); border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 8px; gap: 5px; font-size: 9.5px; font-weight: 700; color: var(--ink3); }
+  .wire .wbody { padding: 8px; display: flex; flex-direction: column; gap: 6px; min-height: 168px; }
+  .blk { border-radius: 6px; border: 1px solid var(--line); background: var(--fill); font-size: 9.5px; font-weight: 700; color: var(--ink3); display: grid; place-items: center; text-align: center; line-height: 1.4; padding: 4px; }
+  .blk.acc { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+  .wcol { display: flex; gap: 6px; flex: 1; min-height: 0; }
+</style>
+</head>
+<body>
+<div class="switcher">
+  <span class="brand">SODALive</span>
+  <button class="sw on" data-s="s0">S0 方向与令牌</button>
+  <button class="sw" data-s="sl">L 工作区布局方案</button>
+  <button class="sw" data-s="s1">S1 Panda 工作区</button>
+  <button class="sw" data-s="s2">S2 SOOP 工作区</button>
+  <button class="sw" data-s="s3">S3 组件规格</button>
+  <button class="sw" data-s="s4">S4 录制 / 库</button>
+  <button class="sw" data-s="s5">S5 播放页</button>
+  <button class="sw" data-s="s6">S6 设置页</button>
+  <button class="sw" data-s="s7">S7 状态与空态</button>
+  <button class="sw" data-s="s9">S9 账号 / 登录</button>
+  <button class="sw" data-s="s8">S8 分期与待确认</button>
+  <button class="sw" id="themeBtn" style="margin-left:6px">◐ 深色</button>
+  <span class="meta">设计稿 · 一期已落地（渲染层 + 数据面 A/B/C/D）· 可静态判定的规则由 <code class="tok">scripts/verify-design.mjs</code> 守护 · 对比度为 WCAG 相对亮度实测</span>
+</div>
+<!-- ============================ S0 ============================ -->
+<section class="screen on" id="s0">
+  <div class="page">
+    <h1 class="doc">平台优先信息架构与视觉重构 · v1</h1>
+    <div class="doc-sub">
+      根因不是「缺一个页面」，而是<strong>平台被降格成了一个筛选条件</strong>：两个能力集合不同的平台（Panda 有全站列表 / IVS 直连 / 源保活 / 备用线路，SOOP 只有关注列表整轮 + 逐房探针 / 本地 HLS 代理 / 无保活）
+      共用一条页面轴、一个轮询状态对象、一套排序，结果是谁的能力都在给对方制造空态与误读。本稿把轴换过来：<strong>先选平台，再看内容</strong>；直播大厅与已关注整合为一页，页内按<strong>视图分段</strong>（在播关注 / 站内发现 / 离线关注）切换，「关注在播」这一读数只挂在分段第一档与顶栏徽标上，切去逛发现或做离线管理时不在页顶再复制一条头像带（原稿在此挂了一条「在播坞」：先按 ㉖ 收窄到非在播两视图，后整体撤掉；滚动墙形态已被你否决，理由与三个候选见 L 屏）；
+      主色从中性蓝取，平台色只用于表达身份，不再兼作主题色。录制 / 库 / 账号保持结构不动，只做令牌换皮与可见性修补（账号页的 5 处见 S9）；落地时「库」进一步并进了录制页（㉒）。<span class="d">订正（2026-09-30 三次）：账号页的「结构不动」已作废 —— 页内平台分段撤归顶栏、三张登录方式卡并成一卡三行、徽章与存储文案去重，见 S9。页面仍是一页讲一方，不拆两页这条不变。</span>
+    </div>
+
+    <div class="sec"><h2>0.1 信息架构：旧 → 新</h2><span class="d">一级轴从「页面」换成「平台 × 页面」；发现能力收进各自工作区，SOOP 缺该段时以引导卡补位而不是留空墙</span></div>
+    <div class="cmp">
+      <div>
+        <div class="cap"><span class="tagold">现状</span> 页面为一级，平台为筛选</div>
+        <table class="spec">
+          <thead><tr><th>路由</th><th>页面</th><th>问题</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">/</td><td>直播大厅</td><td>只有 Panda 有数据源；SOOP 进来是空墙，页头只能挂一句提示文案兜过去</td></tr>
+            <tr><td class="mono">/monitor</td><td>已关注</td><td>两平台混排，排序只能迁就「SOOP 探针拿不到人气」这条最弱路径</td></tr>
+            <tr><td class="mono">/player/:plat/:userId</td><td>播放</td><td>「返回大厅」对 SOOP 房间语义错误（大厅里没有它）；保活区块对 SOOP 直接消失，读成「坏了」</td></tr>
+            <tr><td class="mono">/recordings · /library</td><td>录制 · 视频库</td><td>跨平台是对的，但缺平台入口；视频库按主播名分组会并掉跨平台同名房间</td></tr>
+            <tr><td class="mono">/settings</td><td>设置</td><td>监控项与通知项不分平台，「轮询间隔」对两平台是两套语义</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="cap"><span class="tagnew">新</span> 平台为一级，工作区一页三视图</div>
+        <table class="spec">
+          <thead><tr><th>路由</th><th>内容</th><th>要点</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">/:plat/live</td><td>三视图分段：在播关注 / 站内发现 / 离线关注（「关注在播」的计数在这一档本身，不另挂坞）</td><td>每视图各自排序与分页；Panda 三项齐全，SOOP 的发现项一期为引导卡（布局详见 L 屏）</td></tr>
+            <tr><td class="mono">/:plat/recordings</td><td>录制任务 + <strong>库</strong>（原视频库页并入本页第三段，见 ㉒）</td><td>本页不设平台 tab（它没有「在播 / 发现 / 离线」那种视图）；<code class="tok">:plat</code> 段作为库的初始筛选，库段内仍可切「全部平台」</td></tr>
+            <tr><td class="mono">/:plat/library</td><td><strong>重定向</strong> → <code class="tok">/:plat/recordings</code></td><td>库不另立页面（㉒）；旧深链必须继续可用，用户的历史 TG 卡片与本仓库脚本都指着它</td></tr>
+            <tr><td class="mono">/player/:plat/:userId</td><td>播放 + 录制控制</td><td>返回目标 = 原路返回（见 5.2「返回目标」订正）；能力缺失区块显示「不适用 + 原因」</td></tr>
+            <tr><td class="mono">/account</td><td>两平台登录卡片</td><td><span class="d">2026-09-30 三次订正：结构已动</span> 仍是一页讲一方（不拆两页），但页内平台分段撤归顶栏、三张登录方式卡并成一卡三行（低频两条折叠），见 S9</td></tr>
+            <tr><td class="mono">/settings</td><td>全局 + 平台分节</td><td>监控拆「全局节奏 / Panda 采集 / SOOP 采集」；通知改按平台矩阵</td></tr>
+          </tbody>
+        </table>
+        <div class="note blue" style="margin-top:10px">
+          <b>旧深链重定向（一期必须）</b>：<code class="tok">#/explore</code> → <code class="tok">#/:plat/live?view=discover</code>；<code class="tok">#/monitor</code> → <code class="tok">#/:plat/live?view=live</code>；
+          <code class="tok">#/recordings</code> / <code class="tok">#/library</code> → 当前默认工作区同名页；<code class="tok">#/player/&lt;userId&gt;</code> → 补 <code class="tok">pandalive</code> 段。落点平台由 D5 决定，不硬编码 Panda。
+          Telegram 推送正文里的房间链接由 <code class="tok">tgFormat.ts</code> 走 <code class="tok">roomUrl()</code> 生成，指向<b>站内网页</b>播放页而非应用深链，因此本次路由改版无需改动 TG 正文（已核实：<code class="tok">src/main · src/shared · src/preload</code> 全文无 <code class="tok">#/</code> 拼接）。
+        </div>
+      </div>
+    </div>
+
+    <div class="sec"><h2>0.2 四条设计原则</h2><span class="d">后续任何争议回到这四条裁决；优先级：可读性 &gt; 一致性 &gt; 效率 &gt; 美观</span></div>
+    <table class="spec">
+      <tbody>
+        <tr><th class="k">1 · 平台色只表身份</th><td>平台色（Panda 粉 / SOOP 电光黄）<strong>只出现在徽标、色点、工作区分段选中态</strong>，永不做按钮底色、进度条或正文色。两平台混排时颜色不会被误读成「状态」，SOOP 工作区里也不会每枚主按钮都在替另一个平台说话。</td></tr>
+        <tr><th class="k">2 · 色彩不做唯一编码</th><td>任何用色传达的信息（在播 / 离线 / 录制中 / 降级 / 熔断）必须同时有文字或图形。现状顶栏轮询状态只有一枚圆点，色盲用户与深色主题下都读不出含义。</td></tr>
+        <tr><th class="k">3 · 差异显式声明</th><td>平台能力不对称处写「不适用」并给一句原因，<strong>不隐藏区块</strong>。隐藏会让用户以为功能坏了（现状：SOOP 播放页的保活与备用线路整块消失）。</td></tr>
+        <tr><th class="k">4 · 一屏一个主行动</th><td>卡片主按钮恒为「进入房间」，录制是次级按钮，关注与取关收进右键菜单和离线行。解决现状卡片上关注 + 录制 + 删除三枚同级按钮互相抢注意力。</td></tr>
+      </tbody>
+    </table>
+
+    <div class="sec"><h2>0.3 令牌板</h2><span class="d">比值为该色在其典型承载面上的 WCAG 相对亮度对比度，由 node 脚本按公式算得（非估算）；正文级文字一律 ≥ 4.5:1</span></div>
+    <div class="tokgrid">
+      <div class="tok"><div class="swatch" style="background:#2F4B7C">Aa 主色 Brand</div><div class="info"><b>#2F4B7C</b> 主按钮 / 选中态 / 焦点环 / 下划线<div class="ratio">8.68 : 1 on #FFF ✓</div></div></div>
+      <div class="tok"><div class="swatch" style="background:#E5484D">Aa 在播 Live</div><div class="info"><b>#E5484D</b> 仅色点 / 图标 / 进度条<div class="ratio">3.91 : 1 → 禁止承载正文</div></div></div>
+      <div class="tok"><div class="swatch" style="background:#B02A31">Aa 在播徽标</div><div class="info"><b>#B02A31</b> 徽标底色 + 白字<div class="ratio">6.52 : 1 ✓</div></div></div>
+      <div class="tok"><div class="swatch" style="background:#171A1F">Aa 正文 Ink1</div><div class="info"><b>#171A1F</b> 标题 / 主播名 / 数值<div class="ratio">17.4 : 1 ✓</div></div></div>
+      <div class="tok"><div class="swatch" style="background:#5A6270">Aa 次文 Ink2</div><div class="info"><b>#5A6270</b> 13px+ 描述文案<div class="ratio">6.75 : 1 ✓</div></div></div>
+      <div class="tok"><div class="swatch" style="background:#666F7B">Aa 辅文 Ink3</div><div class="info"><b>#666F7B</b> 11–12px 计数 / 时间 / ID<div class="ratio">4.67 : 1 ✓（现 #9499A0 仅 2.64 ✗）</div></div></div>
+      <div class="tok"><div class="swatch" style="background:#FB7299">Aa 平台 Panda</div><div class="info"><b>#FB7299</b> 色点；浅底徽标文字改 <b>#B03A5C</b><div class="ratio">2.75 : 1 → 不可做白字底</div></div></div>
+      <div class="tok"><div class="swatch" style="background:#FFD400;color:#6B5900">Aa 平台 SOOP</div><div class="info"><b>#FFD400</b> 色点；文字恒取 <b>#6B5900</b>，需深底时承载面用 <b>#1B1D22</b><div class="ratio">1.94 : 1 → 只做图形</div></div></div>
+    </div>
+    <div class="note gray" style="margin-top:10px">
+      <b>为什么把主色从 #FB7299 换走（这是本稿最需要你拍板的一处视觉改动）</b>：现状 <code class="tok">tailwind.config.js</code> 里 <code class="tok">brand</code> 与 <code class="tok">live</code> 同为 <code class="tok">#fb7299</code>，即 PandaLive 官方粉。
+      一个色值同时承担「应用主题色」和「Panda 平台身份」和「在播状态」三重语义，于是：① 粉底白字主按钮只有 2.75:1，全部主按钮文字不达标；
+      ② 「直播中」和「这是 Panda」在视觉上无法区分；③ SOOP 工作区继承了一套粉主题。改中性蓝后平台身份只剩徽标一处，主按钮 8.68:1，两平台共用同一套强调语义。
+      若你更希望保留品牌粉做主色，替代方案是把 <code class="tok">live</code> 独立成红、<code class="tok">brand</code> 加深到 <code class="tok">#D8306A</code> 级别（对比 5.0:1），代价是 SOOP 工作区仍然是「另一个平台的颜色」。
+    </div>
+
+    <div class="sec"><h2>0.4 排版 / 间距 / 圆角 / 阴影</h2><span class="d">字阶 6 档 · 间距 4px 基准网格 · 圆角 4 档 · 阴影 2 级</span></div>
+    <div class="cmp">
+      <div>
+        <div class="cap">字阶（现状有 9 种字号，收敛到 6 档）</div>
+        <table class="spec">
+          <thead><tr><th>用途</th><th class="mono">px / weight</th><th>示例</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">page/title</td><td class="mono">17 / 800</td><td style="font-size:17px;font-weight:800">PandaLive</td></tr>
+            <tr><td class="mono">group/head</td><td class="mono">13 / 800</td><td style="font-size:13px;font-weight:800">在播关注</td></tr>
+            <tr><td class="mono">card/title</td><td class="mono">13.5 / 600</td><td style="font-size:13.5px;font-weight:600">今晚排位上分，赢了睡觉</td></tr>
+            <tr><td class="mono">body</td><td class="mono">12.5 / 400–600</td><td style="font-size:12.5px">设置项正文与描述</td></tr>
+            <tr><td class="mono">meta</td><td class="mono">11.5 / 400 ink3</td><td style="font-size:11.5px;color:var(--ink3)">1.2 万 · 2:14:07</td></tr>
+            <tr><td class="mono">badge</td><td class="mono">10.5–11 / 700–800</td><td><span class="b-live"><i></i>直播中</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="cap">尺度</div>
+        <table class="spec">
+          <tbody>
+            <tr><th class="k">间距</th><td>4 基准，只用 <code class="tok">4 / 8 / 12 / 16 / 20 / 24 / 28</code>。卡片内边距 12，卡片间纵 20 横 18，页边 26–28。现状的 22 与 20 混用废除。</td></tr>
+            <tr><th class="k">圆角</th><td>卡片 14 · 控件 10 · 徽标 6（sm=5）· 胶囊 999。缩略图不再单独设圆角，跟随卡片 overflow 裁切。</td></tr>
+            <tr><th class="k">阴影</th><td>一级 <code class="tok">0 1px 2px rgba(16,20,28,.06)</code> + 1px 边框恒在；二级（hover / 浮层）<code class="tok">0 6px 20px rgba(16,20,28,.10)</code>。<strong>深色主题下描边是唯一可信的边界</strong>，所以卡片一律描边，不做无边框纯阴影卡。</td></tr>
+            <tr><th class="k">数字</th><td>所有计数 / 时长 / 码率走 <code class="tok">font-variant-numeric: tabular-nums</code>，避免每 30s 轮询刷新时列宽抖动导致整墙文字跳动。</td></tr>
+            <tr><th class="k">缺失值</th><td>统一 <code class="tok">—</code>（破折号），禁止 0、空串、「暂无」三种写法混用。</td></tr>
+            <tr><th class="k">同一物件只允许一处规格</th><td>页头标题曾有三种写法（20/21px、bold/extrabold），平台色点有四套自画实现（5–8px、描边有无不一），计数药丸有三套（裸字 / <code class="tok">min-w+rounded-full</code> 手搓 / <code class="tok">.sec-n</code>），等宽数字有两种拼法（<code class="tok">.tnum</code> 与 <code class="tok">tabular-nums</code>）。<strong>规格收敛到令牌层一处，视图只写内容</strong>：<code class="tok">.page-h/.page-sub</code>（页头，实测 17/800 —— 原稿写的 20 与 30px 控件行不齐，落地时改）、<code class="tok">.sec-h/.sec-n/.sec-bar</code>（分组条与计数）、<code class="tok">.platn</code>（顶栏两枚平台计数）、<code class="tok">.pdot/.pdot-sm/.pdot-panda/.pdot-soop</code>（平台色点，7px + <code class="tok">ink3</code> 1px 描边：SOOP 黄压白卡只有 1.43:1，不勾边等于看不见）、<code class="tok">font-variant-numeric: tabular-nums</code>（唯一拼法，<code class="tok">.tnum</code> 同义类已删）。由 D18~D21 静态锁死。</td></tr>
+            <tr><th class="k">控件高度与 naive 对齐</th><td>自绘控件必须显式锁 <code class="tok">h-*</code> 档位（28 与 naive <code class="tok">small</code> 同高、34 是浮层动作行），<strong>不得用 <code class="tok">py-[Npx]</code> 撑高</strong> —— 撑出来的 34.35 与同行 naive 的 28 并排一眼可见，而圆角/颜色全在档上，D1~D22 一条都查不到（D24 补上）。同理 <code class="tok">App.vue</code> 的 naive 主题覆盖必须逐值等于 <code class="tok">styles.css</code> 的语义变量（D22），否则同一屏出现两套底色两套主色 —— 实测深色 <code class="tok">errorColor</code> 沿用了浅色的 <code class="tok">#e5484d</code>。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ L 工作区布局方案 ============================ -->
+<section class="screen" id="sl">
+  <div class="page">
+    <h1 class="doc">L · 工作区怎么摆这三个模块</h1>
+    <div class="doc-sub">
+      你指出的问题成立：<strong>单页三段滚动会把内容量最大的两个模块互相挤开</strong>。关注在播 30 位时，发现段要滚过两屏才露头；发现段自身 240 个房间还要再分页。
+      两个都需要「整屏 + 各自排序 + 各自分页」的模块被缝在同一条滚动流里，谁都用不痛快。<br/>
+      本质冲突是：<strong>关注（管理型，要全量可见、要排序分页）</strong>和 <strong>发现（浏览型，要沉浸、要分页）</strong>是两种阅读模式，<strong>不该共享一条滚动轴</strong>。
+      下面三个候选方案，线框 + 代价都摆出来。
+    </div>
+
+    <div class="sec"><h2>L.1 三个候选</h2><span class="d">线框只表达结构，不是视觉稿</span></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start">
+      <div>
+        <div class="cap"><span class="tagnew">推荐</span> A · 视图分段（原稿的「+ 在播坞」落地后撤掉）</div>
+        <div class="wire">
+          <div class="wbar">Panda · SOOP ｜ 直播 · 录制</div>
+          <div class="wbody">
+            <div class="blk" style="height:18px">在播关注 12 ｜ 站内发现 240 ｜ 离线关注 6</div>
+            <div class="blk" style="flex:1">当前视图整屏内容<br/>（自己的排序 + 自己的分页）</div>
+            <div class="blk" style="height:16px">‹ 1 2 3 … ›</div>
+          </div>
+        </div>
+        <table class="spec" style="margin-top:9px">
+          <tbody>
+            <tr><th class="k">滚动深度</th><td class="yes">恒定可预测，任何视图都只滚自己那段</td></tr>
+            <tr><th class="k">切换成本</th><td>1 次点击；视图选择在平台内记忆</td></tr>
+            <tr><th class="k">关注会不会被藏</th><td>分段第一档自带「在播关注 N」与呼吸点，顶栏平台徽标跨页报数 —— 一屏一个现场，不在别视图里再摆一条坞</td></tr>
+            <tr><th class="k">代价</th><td>不能同屏并排看关注墙和发现墙</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="cap"><span class="tagold">备选</span> B · 左右双栏 master-detail</div>
+        <div class="wire">
+          <div class="wbar">Panda · SOOP ｜ 直播 · 录制</div>
+          <div class="wbody">
+            <div class="wcol">
+              <div style="display:flex;flex-direction:column;gap:4px;width:34%">
+                <div class="blk acc" style="height:18px">关注（在播置顶）</div>
+                <div class="blk" style="flex:1">紧凑行<br/>滚动列表</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px;flex:1">
+                <div class="blk" style="height:16px">发现 · 排序 / 筛选</div>
+                <div class="blk" style="flex:1">卡片墙 + 分页</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <table class="spec" style="margin-top:9px">
+          <tbody>
+            <tr><th class="k">滚动深度</th><td>两栏各自滚，都可控</td></tr>
+            <tr><th class="k">切换成本</th><td class="yes">0 次点击，全量同屏</td></tr>
+            <tr><th class="k">弱点</th><td class="no">右栏被压窄：1440 宽下发现墙只剩 3 列，卡片信息量下降；SOOP 无发现段时右栏空转，双栏结构失衡；离线关注也得塞进左栏，左栏变成三段小滚动</td></tr>
+            <tr><th class="k">适配成本</th><td>窗口窄时要退化成方案 A，等于两套布局都要做</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="cap"><span class="tagold">否决</span> C · 横向泳道 shelves</div>
+        <div class="wire">
+          <div class="wbar">Panda · SOOP ｜ 直播 · 录制</div>
+          <div class="wbody">
+            <div class="blk" style="height:44px">在播关注 ──────────────── ›</div>
+            <div class="blk" style="height:44px">站内发现 ──────────────── ›</div>
+            <div class="blk" style="height:44px">离线关注 ──────────────── ›</div>
+            <div class="blk" style="height:16px">（每条泳道横向滚动）</div>
+          </div>
+        </div>
+        <table class="spec" style="margin-top:9px">
+          <tbody>
+            <tr><th class="k">好看程度</th><td class="yes">最高，探索感强</td></tr>
+            <tr><th class="k">致命弱点</th><td class="no">横向滚动在桌面端触摸板/滚轮上不自然（要 Shift 或拖-scrollbar）；每条泳道只显示 5–6 个，<strong>42 个关注要横向推 8 屏</strong>；分页控件、批量选择、排序 chips 都无处安放</td></tr>
+            <tr><th class="k">结论</th><td>适合纯浏览的产品，不适合「监控 + 管理 + 录制」工具型应用。<strong>建议否决</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="sec"><h2>L.2 推荐方案 A 的完整规则</h2><span class="d">「分段切视图」的安全性原来记在一条在播坞上（㉖ 收窄、落地后整体撤掉）；如今「我关注的人有没有开播」由分段第一档的计数 + 顶栏徽标回答</span></div>
+    <table class="spec">
+      <thead><tr><th style="width:150px">部件</th><th>规则</th></tr></thead>
+      <tbody>
+        <tr><th class="k">视图分段</th><td>三项：<b>在播关注</b>（计数）· <b>站内发现</b>（计数）· <b>离线关注</b>（计数）。每项<strong>自己的排序 chips、筛选 chips、分页、滚动位置</strong>，全部持久化在 store（沿用现状 <code class="tok">exploreFilter</code> 的做法，扩成 per-view）。切换不重新拉数据，只换渲染。<span class="d">落地订正（2026-10-01）：筛选条右端那句常驻说明「排序与页码在本视图内记忆」已撤 —— 记忆是这一屏的默认行为，不是一条需要提醒的规则，天天说反而成了噪音（与 §键盘 那条同源：屏上的说明书只在「用户会撞见却不自知」时才值得占一格）。右端现在<strong>只在真有搜索词时出声</strong>（「「{kw}」的搜索结果」+「清除搜索」出口），无搜索词时连为顶住那句而摆的 <code class="tok">flex-1</code> 一起收起；<code class="tok">ws.memoryHint</code> 双语死键一并删，由 D35 锁死。per-view 记忆本体（排序/筛选/页码/滚动位存 <code class="tok">store.views</code>）不动。</span></td></tr>
+        <tr><th class="k">默认视图</th><td>进工作区恒为「在播关注」。<strong>有关注开播时不自动跳视图</strong>（现状 MonitorView 会自动切 tab，会打断正在浏览的用户），改为顶栏平台徽标计数转红——用户回来时看得见，但当前阅读不被劫持。<span class="d">原稿在这里还挂了「在播坞对应头像左侧 2px 品牌色竖条」，坞撤掉后这条信号只剩顶栏一处。</span></td></tr>
+        <tr><th class="k">在播坞</th><td><strong>已整体撤掉（2026-10-01）</strong>。原规格留档：sticky 在工作区内容顶部、高 44px，只列「关注且在播」（不含发现段房间），按开播时间新→旧，单项头像 + 昵称（录制中加红点、密码房加锁形），超过 <b>7</b> 个折叠为 <code class="tok">+N</code>，右侧「全部在播 N ›」跳「在播关注」视图，<strong>0 位时整条收起不占位</strong>，「在播关注」视图本身不挂（⑥ 管空态不占位、⑦ 管重复呈现，两条独立判据，见 ㉖）。<span class="d">撤它的理由就是 ⑦ 那条判据推到底：分段第一档已经写着「在播关注 N」并带呼吸点，顶栏徽标在别的页面也报同一个数 —— 一条只读、不承载任何管理动作的头像带，在同一屏上是第二批呈现，而不是补缺。随撤：<code class="tok">LiveDock.vue</code>、<code class="tok">dock.*</code> 四键（中英各两）、只喂它的 <code class="tok">store.liveAnchors</code> getter、原型样式 <code class="tok">.livedock</code> / <code class="tok">.dchip</code>。由 D38 锁死。</span></td></tr>
+        <tr><th class="k">SOOP 的发现项</th><td>分段仍显示三项（按你确认的 D2 方案 1），但该项右侧带 <code class="tok">未开放</code> 灰标；点进去是引导卡而不是空墙。<strong>段位置固定，二期接口确认后无缝替换</strong>，导航不动。</td></tr>
+        <tr><th class="k">深链</th><td><code class="tok">#/:plat/live?view=live|discover|offline</code>，默认 <code class="tok">live</code>。旧 <code class="tok">#/explore → ?view=discover</code>、<code class="tok">#/monitor → ?view=live</code>，语义精确不再靠「滚动到某段」这种不可控行为。</td></tr>
+        <tr><th class="k">键盘</th><td>焦点不在输入框时，<code class="tok">1</code> / <code class="tok">2</code> / <code class="tok">3</code> 切视图；<code class="tok">/</code> 聚焦搜索（现状搜索已在顶栏）。这条让「切去发现逛一圈再切回来」几乎零成本，抵消方案 A 唯一的缺点。<span class="d">落地订正（2026-10-01）：快捷键本体照旧，屏上那条常驻提示（分段行右侧的「按 1 / 2 / 3 切换视图 · / 聚焦搜索」）已撤 —— 它是一排分段右侧的第三条声音（分段本身 + 计数药丸 + 一句说明书），而它讲的动作不需要被看见才会发生：键盘是自己会敲的人用的，撞见一次就记住了。文案与 <code class="tok">ws.keyHint</code> 双语键一并删（判据是「无消费方即删」），由 D34 锁死。</span></td></tr>
+        <tr><th class="k">每视图的分页</th><td>底栏常驻，样式与现状大厅一致（<code class="tok">共 N · 每页 20</code> + 页码）。<strong>离线关注视图额外给「每页 40/60」选项</strong>——它是紧凑行，一屏能放 10 行，20 条太少。</td></tr>
+        <tr><th class="k">跨视图搜索</th><td>顶栏搜索词按当前视图过滤；<strong>命中数在其他两项上以次级数字显示</strong>（分段标签右侧计数在搜索态临时改为该词命中数），所以不会出现「搜 lck 时离线视图显示 6 但其实只有 1 个匹配」。</td></tr>
+      </tbody>
+    </table>
+
+    <div class="note" style="margin-top:14px">
+      <b>方案 A 相对你原话「希望平台 tab 独立」的取舍说明</b>：分段切视图会牺牲「一屏看全」，换来的是内容量最大的两个模块各自可用整屏与各自分页。
+      如果你的真实使用习惯是「大部分时间只看关注，偶尔逛发现」，A 是对的（发现被藏一层无所谓）。
+      如果是「经常边逛发现边看关注在播」，B 的双栏更贴合，代价是窄窗口要退化。<strong>在播坞是 A 用来把 B 的好处补回来的部件</strong>，所以我的建议是 A + 坞；
+      若你更想要 B，我按 B 重画 S1/S2 即可，只是要接受 SOOP 工作区在发现段落地前是「左列表 + 右引导卡」的形态。
+      <span class="d">〔落地后订正：这条「补回来的部件」最终没留住 —— 分段第一档的计数与顶栏徽标已经回答同一个问题，坞撤掉后 A 由此变成纯粹的「一次一视图」。〕</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S1 ============================ -->
+<section class="screen" id="s1">
+  <div class="app">
+    <div class="wordmark"><div class="w1">SODALive</div><div class="w2">MONITOR</div></div>
+    <div class="sepv"></div>
+    <div class="platseg">
+      <button class="on p"><span class="cdot p"></span>Panda<span class="badge">12</span></button>
+      <button><span class="cdot s"></span>SOOP<span class="badge" style="background:#B99C00">5</span></button>
+    </div>
+    <div class="navtab on">直播</div>
+    <div class="navtab">录制<span class="cnt red">2</span></div>
+    <div class="searchbox">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input placeholder="搜索当前平台的主播 / 标题" />
+    </div>
+    <span class="state-pill"><i></i>每 30s · 上轮 12ms</span>
+    <div class="av p">P</div>
+    <div class="wctl"><span>–</span><span>□</span><span>×</span></div>
+  </div>
+  <div class="body">
+    <div class="ph">
+      <div>
+        <h3>PandaLive <span class="pt md onsurf p"><span class="dot"></span>工作区</span></h3>
+        <div class="sub">18 位已关注 · 12 位直播中 · 站内发现 240 个房间 · 上轮拉取 12:04:31</div>
+      </div>
+      <div class="right">
+        <button class="btn btn-ghost btn-sm">同步站内关注</button>
+        <button class="btn btn-ghost btn-sm">立即拉取一轮</button>
+        <button class="btn btn-primary btn-sm">+ 关注主播</button>
+      </div>
+    </div>
+
+    <div class="viewtabs">
+      <button class="vt on"><span class="cdot"></span>在播关注<span class="n">12</span></button>
+      <button class="vt">站内发现<span class="n">240</span></button>
+      <button class="vt">离线关注<span class="n">6</span></button>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap">
+      <span class="sortu on">最新开播</span><span class="sortu">人气最高</span><span class="sortu">点赞最多</span><span class="sortu">粉丝团最多</span>
+      <span style="width:1px;height:14px;background:var(--line)"></span>
+      <span class="chip">只看已开自动录制 <span class="n">4</span></span>
+    </div>
+
+    <div class="group" style="margin-top:14px">
+      <div class="grid">
+        <div class="lc">
+          <div class="thumb"><div class="g">LIVE</div>
+            <div class="badges"><span class="b-live"><i></i>直播中</span><span class="b-ready">已缓存</span><span class="b-rec"><i></i>录制中</span></div>
+            <span class="b-19">19+</span>
+          </div>
+          <div class="lc-body">
+            <div class="lc-title">今晚排位上分，赢了睡觉</div>
+            <div class="lc-host"><div class="ava"></div><span class="nick">zenith6666</span><span class="uid">@zenith6666</span></div>
+            <div class="lc-stats"><span class="kv">观众 1.2 万</span><span class="kv">点赞 3.4 万</span><span class="dur">2:14:07</span></div>
+            <div class="lc-acts"><button class="btn btn-primary btn-sm">进入房间</button><button class="btn btn-ghost btn-sm">■ 停止</button></div>
+          </div>
+        </div>
+        <div class="lc">
+          <div class="thumb"><div class="g">LIVE</div><div class="badges"><span class="b-live"><i></i>直播中</span><span class="b-ready">已缓存</span></div></div>
+          <div class="lc-body">
+            <div class="lc-title">[粉丝团] 周末电影放映厅</div>
+            <div class="lc-host"><div class="ava"></div><span class="nick">cine_club</span><span class="uid">@cine_club</span></div>
+            <div class="lc-stats"><span class="kv">观众 842</span><span class="kv">点赞 6.1k</span><span class="dur">41:18</span></div>
+            <div class="lc-acts"><button class="btn btn-primary btn-sm">进入房间</button><button class="btn btn-ghost btn-sm">⏺ 录制</button></div>
+          </div>
+        </div>
+        <div class="lc">
+          <div class="thumb"><div class="g">LIVE</div><div class="badges"><span class="b-live"><i></i>直播中</span><span class="b-off">密码房</span></div></div>
+          <div class="lc-body">
+            <div class="lc-title">深夜聊天室 · 密码见动态</div>
+            <div class="lc-host"><div class="ava"></div><span class="nick">nightowl</span><span class="uid">@nightowl</span></div>
+            <div class="lc-stats"><span class="kv">观众 156</span><span class="kv">点赞 980</span><span class="dur">1:02:44</span></div>
+            <div class="lc-acts"><button class="btn btn-primary btn-sm">进入房间</button><button class="btn btn-ghost btn-sm">⏺ 录制</button></div>
+          </div>
+        </div>
+        <div class="lc">
+          <div class="thumb"><div class="g">LIVE</div><div class="badges"><span class="b-live"><i></i>直播中</span></div><span class="b-19">19+</span></div>
+          <div class="lc-body">
+            <div class="lc-title">ASMR · 耳语助眠</div>
+            <div class="lc-host"><div class="ava"></div><span class="nick">moe_asmr</span><span class="uid">@moe_asmr</span></div>
+            <div class="lc-stats"><span class="kv">观众 2 210</span><span class="kv">粉丝团 940</span><span class="dur">0:08:52</span></div>
+            <div class="lc-acts"><button class="btn btn-primary btn-sm">进入房间</button><button class="btn btn-ghost btn-sm">⏺ 录制</button></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--ink3)">
+        <span>在播关注 12 位 · 每页 20 个</span><div style="flex:1"></div>
+        <span class="chip">‹</span><span class="chip on">1</span><span class="chip">›</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="sec"><h2>1.1 同一工作区的另外两个视图</h2><span class="d">切换只换正文区，顶栏 + 视图分段完全不动 —— 三视图同构，切换没有位移感（这一屏原先还挂在一条在播坞上，落地后撤掉）</span></div>
+    <div class="cmp">
+      <div>
+        <div class="cap">视图 2 · 站内发现</div>
+        <div class="frame">
+          <div class="app">
+            <div class="wordmark"><div class="w1">SODALive</div></div>
+            <div class="platseg"><button class="on p"><span class="cdot p"></span>Panda</button><button><span class="cdot s"></span>SOOP</button></div>
+            <div class="navtab on">直播</div><div class="navtab">录制</div>
+            <div class="searchbox"><input placeholder="搜索主播 / 标题" /></div>
+            <div class="av p">P</div>
+          </div>
+          <div class="body">
+            <div class="viewtabs" style="margin-top:8px;border-bottom-width:1px">
+              <button class="vt" style="height:26px;font-size:10.5px;padding:0 8px">在播关注<span class="n" style="font-size:9px;padding:1px 5px">12</span></button>
+              <button class="vt on" style="height:26px;font-size:10.5px;padding:0 8px">站内发现<span class="n" style="font-size:9px;padding:1px 5px">240</span></button>
+              <button class="vt" style="height:26px;font-size:10.5px;padding:0 8px">离线关注<span class="n" style="font-size:9px;padding:1px 5px">6</span></button>
+            </div>
+            <div style="display:flex;align-items:center;gap:7px;margin-top:8px;font-size:10px;color:var(--ink3);flex-wrap:wrap">
+              <span class="sortu" style="font-size:10.5px">人气最高</span><span class="sortu on" style="font-size:10.5px">最新开播</span>
+              <span class="chip" style="height:20px;font-size:10px;padding:0 7px">只看已关注</span>
+              <span class="chip" style="height:20px;font-size:10px;padding:0 7px">仅看 19+</span>
+              <span class="chip" style="height:20px;font-size:10px;padding:0 7px">仅看粉丝房</span>
+              <span style="margin-left:auto">刷新</span>
+            </div>
+            <div class="grid" style="margin-top:9px">
+              <div class="lc"><div class="thumb"><div class="g">16:9</div><div class="badges"><span class="b-live" style="font-size:9px;padding:2px 6px"><i></i>直播中</span></div></div><div class="lc-body"><div class="lc-title">LCK 解说转播</div><div class="lc-host"><div class="ava"></div><span class="nick">lck_kr</span></div></div></div>
+              <div class="lc"><div class="thumb"><div class="g">16:9</div><div class="badges"><span class="b-live" style="font-size:9px;padding:2px 6px"><i></i>直播中</span></div></div><div class="lc-body"><div class="lc-title">手冲咖啡与爵士</div><div class="lc-host"><div class="ava"></div><span class="nick">brewjazz</span></div></div></div>
+              <div class="lc"><div class="thumb"><div class="g">16:9</div><div class="badges"><span class="b-live" style="font-size:9px;padding:2px 6px"><i></i>直播中</span></div></div><div class="lc-body"><div class="lc-title">吉他练习</div><div class="lc-host"><div class="ava"></div><span class="nick">sixstrings</span></div></div></div>
+              <div class="lc"><div class="thumb"><div class="g">16:9</div><div class="badges"><span class="b-live" style="font-size:9px;padding:2px 6px"><i></i>直播中</span></div></div><div class="lc-body"><div class="lc-title">世俱杯复盘</div><div class="lc-host"><div class="ava"></div><span class="nick">foot_talk</span></div></div></div>
+              <div class="lc"><div class="thumb"><div class="g">16:9</div><div class="badges"><span class="b-live" style="font-size:9px;padding:2px 6px"><i></i>直播中</span></div></div><div class="lc-body"><div class="lc-title">深夜电台</div><div class="lc-host"><div class="ava"></div><span class="nick">kbj_radio</span></div></div></div>
+              <div class="lc"><div class="thumb"><div class="g">16:9</div><div class="badges"><span class="b-live" style="font-size:9px;padding:2px 6px"><i></i>直播中</span></div></div><div class="lc-body"><div class="lc-title">绘画过程</div><div class="lc-host"><div class="ava"></div><span class="nick">ink_room</span></div></div></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:9px;font-size:9.5px;color:var(--ink3)">
+              <span>共 240 · 每页 20</span><div style="flex:1"></div>
+              <span class="chip" style="height:18px;font-size:9.5px;padding:0 6px">‹</span>
+              <span class="chip on" style="height:18px;font-size:9.5px;padding:0 6px">1</span>
+              <span class="chip" style="height:18px;font-size:9.5px;padding:0 6px">2</span>
+              <span class="chip" style="height:18px;font-size:9.5px;padding:0 6px">3</span>
+              <span class="chip" style="height:18px;font-size:9.5px;padding:0 6px">›</span>
+            </div>
+          </div>
+        </div>
+        <div class="note gray" style="margin-top:9px;font-size:11.5px">
+          <b>发现视图整屏只属于发现</b>：240 个房间、4 档排序、3 个筛选、独立分页都在这一屏里，卡片墙从分段行下方直接开始，<strong>上面不再压一段关注墙</strong>。
+          关注在播由分段第一档的计数与顶栏徽标带着，要看就点过去，不在别视图里再复制一份。
+        </div>
+      </div>
+
+      <div>
+        <div class="cap">视图 3 · 离线关注</div>
+        <div class="frame">
+          <div class="app">
+            <div class="wordmark"><div class="w1">SODALive</div></div>
+            <div class="platseg"><button class="on p"><span class="cdot p"></span>Panda</button><button><span class="cdot s"></span>SOOP</button></div>
+            <div class="navtab on">直播</div><div class="navtab">录制</div>
+            <div class="searchbox"><input placeholder="搜索主播 / 标题" /></div>
+            <div class="av p">P</div>
+          </div>
+          <div class="body">
+            <div class="viewtabs" style="margin-top:8px">
+              <button class="vt" style="height:26px;font-size:10.5px;padding:0 8px">在播关注<span class="n" style="font-size:9px;padding:1px 5px">12</span></button>
+              <button class="vt" style="height:26px;font-size:10.5px;padding:0 8px">站内发现<span class="n" style="font-size:9px;padding:1px 5px">240</span></button>
+              <button class="vt on" style="height:26px;font-size:10.5px;padding:0 8px">离线关注<span class="n" style="font-size:9px;padding:1px 5px">6</span></button>
+            </div>
+            <div style="display:flex;align-items:center;gap:7px;margin-top:8px;font-size:10px;color:var(--ink3)">
+              <span class="chip" style="height:20px;font-size:10px;padding:0 7px">按未播天数</span>
+              <span class="chip on" style="height:20px;font-size:10px;padding:0 7px">隐藏 90 天未播</span>
+              <span style="margin-left:auto">每页 <b style="color:var(--ink2)">40</b> ▾</span>
+            </div>
+            <div class="ogrid" style="grid-template-columns:1fr;gap:5px;margin-top:9px">
+              <div class="orow" style="padding:6px 8px"><div class="ava" style="width:22px;height:22px"></div><div class="m"><div class="n1" style="font-size:11px">daily_recs</div><div class="n2" style="font-size:9px">@daily_recs · 上次开播 8 月 1 日 · <span class="stale">61 天未播</span></div></div><div class="acts"><span class="sw2" style="transform:scale(.8)"></span></div></div>
+              <div class="orow" style="padding:6px 8px"><div class="ava" style="width:22px;height:22px"></div><div class="m"><div class="n1" style="font-size:11px">gongbujju</div><div class="n2" style="font-size:9px">@gongbujju · 上次开播 8 月 14 日 · <span class="stale">46 天未播</span></div></div><div class="acts"><span class="sw2 on" style="transform:scale(.8)"></span></div></div>
+              <div class="orow" style="padding:6px 8px"><div class="ava" style="width:22px;height:22px"></div><div class="m"><div class="n1" style="font-size:11px">solo_q</div><div class="n2" style="font-size:9px">@solo_q · <span class="stale">站内已取关</span> · 本地仍保留</div></div><div class="acts"><span class="sw2" style="transform:scale(.8)"></span></div></div>
+              <div class="orow" style="padding:6px 8px"><div class="ava" style="width:22px;height:22px"></div><div class="m"><div class="n1" style="font-size:11px">kbj_radio</div><div class="n2" style="font-size:9px">@kbj_radio · 上次开播 9 月 29 日 · 今天</div></div><div class="acts"><span class="sw2 on" style="transform:scale(.8)"></span></div></div>
+              <div class="orow" style="padding:6px 8px"><div class="ava" style="width:22px;height:22px"></div><div class="m"><div class="n1" style="font-size:11px">retro_lab</div><div class="n2" style="font-size:9px">@retro_lab · 无开播记录</div></div><div class="acts"><span class="sw2" style="transform:scale(.8)"></span></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="note gray" style="margin-top:9px;font-size:11.5px">
+          <b>离线视图是管理视图</b>：紧凑行 + 「隐藏 90 天未播」+「站内已取关」筛选 + 每页 40，再加右键批量（批量取关 / 批量开关自动录制，二期）。
+          它的信息密度必须高于卡片墙，否则 42 个关注要滚四屏。
+        </div>
+      </div>
+    </div>
+
+    <div class="note blue" style="margin-top:16px">
+      <b>这一页相对现状改了六处</b>：
+      ① 顶栏一级从「直播大厅 / 已关注 / 录制 / 视频库」换成「Panda / SOOP」分段 + 「直播 / 录制」两条页面，平台在播数做红点徽标（原第三条「视频库」落地时并进了录制页，见 ㉒）；
+      ② 大厅与已关注合成一个「直播」页，内部用<strong>视图分段</strong>而不是纵向堆叠 —— 内容量最大的两个模块各自拿到整屏与各自的分页；
+      ③ ~~新增<strong>在播坞</strong>：切去逛发现或做离线管理时，关注在播仍是一条可见可点的常驻带~~ —— 本条已整体撤掉：分段第一档的「在播关注 N」与顶栏徽标回答同一件事，一条只读的头像带是重复呈现；
+      ④ 离线行补上「上次开播 / 未播天数」—— 现状完全缺失（<code class="tok">Anchor</code> 只有 <code class="tok">lastSeenAt</code>，那是「我们最后一次拉到他」不是「他最后一次开播」，见 S8 F2）；
+      ⑤ ~~在播排序默认「最新开播」而非「人气最高」：人气只有部分采集路径给得出，纯人气排序会把刚开播的房间永久钉在墙尾~~ <span class="d">2026-10-01 整体改口：在播默认档已换成「人气最高」，与筛子栏第一格同档 —— 实测两平台在播房的人气全都有数（SOOP 80 房 0 个为 0、Panda 10 房 0 个为 0），原句那条理由只在采集降级成逐房扫时才成立；人气为 0 的房在新默认下自然垫底，「谁刚开播」仍点得到。判据由 D50c/D50d 锁。</span>
+      ⑥ 卡片动作降为两枚（进入房间 / 录制），关注、取关、打开官方页面收进右键菜单。
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S2 ============================ -->
+<section class="screen" id="s2">
+  <div class="app">
+    <div class="wordmark"><div class="w1">SODALive</div><div class="w2">MONITOR</div></div>
+    <div class="sepv"></div>
+    <div class="platseg">
+      <button><span class="cdot p"></span>Panda<span class="badge" style="background:#C46A88">12</span></button>
+      <button class="on s"><span class="cdot s"></span>SOOP<span class="badge">5</span></button>
+    </div>
+    <div class="navtab on">直播</div>
+    <div class="navtab">录制</div>
+    <div class="searchbox">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input placeholder="搜索当前平台的主播 / 房间号" />
+    </div>
+    <span class="state-pill cool"><i></i>整轮 3 个房间检测失败</span>
+    <div class="av s">S</div>
+    <div class="wctl"><span>–</span><span>□</span><span>×</span></div>
+  </div>
+  <div class="body">
+    <div class="ph">
+      <div>
+        <h3>SOOPLive <span class="pt md onsurf s"><span class="dot"></span>工作区</span></h3>
+        <div class="sub">42 位已关注 · 5 位直播中 · 37 位离线 · 检测间隔 30s · 19+ 与限区房间需要登录</div>
+      </div>
+      <div class="right">
+        <button class="btn btn-ghost btn-sm">同步站内关注</button>
+        <button class="btn btn-ghost btn-sm">立即检测一轮</button>
+        <button class="btn btn-primary btn-sm">+ 添加房间</button>
+      </div>
+    </div>
+
+    <div class="banner warn" style="margin-top:14px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+      <span>本轮 <b>3</b> 个房间检测失败（其中 2 个提示需要登录）：<b>19+</b> 与地区限制房间在匿名会话下取不到播放页 —— 在「账号」页登录 SOOP 后即可恢复。</span>
+      <div class="acts"><button class="btn btn-ghost btn-sm">去登录</button><button class="btn btn-ghost btn-sm">查看失败清单</button></div>
+    </div>
+
+    <div class="viewtabs">
+      <button class="vt on"><span class="cdot"></span>在播关注<span class="n">5</span></button>
+      <button class="vt">站内发现<span class="lock">未开放</span></button>
+      <button class="vt">离线关注<span class="n">37</span></button>
+      <div style="flex:1"></div>
+      <span style="font-size:11px;color:var(--ink-deco)">发现段位置保留，接口确认后可无缝填入</span>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px;margin-top:14px">
+      <span class="sortu on">最新开播</span><span class="sortu">人气最高</span>
+      <span style="width:1px;height:14px;background:var(--line)"></span>
+      <span class="chip">只看已开自动录制 <span class="n">3</span></span>
+      <div style="flex:1"></div>
+      <span style="font-size:11.5px;color:var(--ink3)">人气由「站内关注列表」整轮给出；兜底探针路径无此字段</span>
+    </div>
+
+    <div class="group" style="margin-top:14px">
+      <div class="grid">
+        <div class="lc">
+          <div class="thumb dark"><div class="g">SOOP</div>
+            <div class="badges"><span class="b-live"><i></i>直播中</span><span class="b-rec"><i></i>录制中</span></div>
+          </div>
+          <div class="lc-body">
+            <div class="lc-title">오늘도 게임 방송</div>
+            <div class="lc-host"><div class="ava"></div><span class="nick">1004ysus</span><span class="uid">房间 297384679</span></div>
+            <div class="lc-stats"><span class="kv">观众 3,204</span><span class="kv">粉丝 41k</span><span class="dur">1:32:05</span></div>
+            <div class="lc-acts"><button class="btn btn-primary btn-sm">进入房间</button><button class="btn btn-ghost btn-sm">■ 停止</button></div>
+          </div>
+        </div>
+        <div class="lc">
+          <div class="thumb dark"><div class="g">SOOP</div><div class="badges"><span class="b-live"><i></i>直播中</span></div><span class="b-pw">粉丝团</span></div>
+          <div class="lc-body">
+            <div class="lc-title">배틀그라운드 랭크</div>
+            <div class="lc-host"><div class="ava"></div><span class="nick">pubg_kr</span><span class="uid">房间 118204933</span></div>
+            <div class="lc-stats"><span class="kv">观众 1,180</span><span class="kv">点赞 —</span><span class="dur">47:12</span></div>
+            <div class="lc-acts"><button class="btn btn-primary btn-sm">进入房间</button><button class="btn btn-ghost btn-sm">⏺ 录制</button></div>
+          </div>
+        </div>
+        <div class="lc">
+          <div class="thumb dark"><div class="g">SOOP</div><div class="badges"><span class="b-live"><i></i>直播中</span></div></div>
+          <div class="lc-body">
+            <div class="lc-title">점심 먹방</div>
+            <div class="lc-host"><div class="ava"></div><span class="nick">muk_lunch</span><span class="uid">房间 220913777</span></div>
+            <div class="lc-stats"><span class="kv">观众 —</span><span class="kv">点赞 —</span><span class="dur">12:38</span></div>
+            <div class="lc-acts"><button class="btn btn-primary btn-sm">进入房间</button><button class="btn btn-ghost btn-sm">⏺ 录制</button></div>
+          </div>
+        </div>
+        <div class="lc">
+          <div class="thumb dark"><div class="g">SOOP</div><div class="badges"><span class="b-live"><i></i>直播中</span><span class="b-off">密码房</span></div></div>
+          <div class="lc-body">
+            <div class="lc-title">비밀 방송</div>
+            <div class="lc-host"><div class="ava"></div><span class="nick">pw_room</span><span class="uid">房间 233188001</span></div>
+            <div class="lc-stats"><span class="kv">观众 88</span><span class="kv">点赞 —</span><span class="dur">2:05:31</span></div>
+            <div class="lc-acts"><button class="btn btn-primary btn-sm">进入房间</button><button class="btn btn-ghost btn-sm">⏺ 录制</button></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--ink3)">
+        <span>在播关注 5 位 · 每页 20 个</span><div style="flex:1"></div>
+        <span style="font-size:11.5px;color:var(--ink-deco)">「观众 —」是采集路径差异，不是 0：兜底探针不返回人气<span class="d">2026-10-01 订正：这一屏原先每枚 SOOP 卡都可能挂 19+，现在一枚也不挂 —— SOOP 全链路不再读 <code class="tok">is_adult</code>，卡片拿到的值恒为 false。这堵墙上的 19+ 从此只有 Panda 会点亮。</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="sec"><h2>2.1 SOOP 的另外两个视图</h2><span class="d">发现段按你确认的 D2 方案 1 保留位置：有段头、有引导，不留空墙</span></div>
+    <div class="cmp">
+      <div>
+        <div class="cap">视图 2 · 站内发现（未开放 → 引导卡）</div>
+        <div class="frame">
+          <div class="app">
+            <div class="wordmark"><div class="w1">SODALive</div></div>
+            <div class="platseg"><button><span class="cdot p"></span>Panda</button><button class="on s"><span class="cdot s"></span>SOOP</button></div>
+            <div class="navtab on">直播</div><div class="navtab">录制</div>
+            <div class="searchbox"><input placeholder="搜索主播 / 房间号" /></div>
+            <div class="av s">S</div>
+          </div>
+          <div class="body">
+            <div class="viewtabs" style="margin-top:2px">
+              <button class="vt" style="height:26px;font-size:10.5px;padding:0 8px">在播关注<span class="n" style="font-size:9px;padding:1px 5px">5</span></button>
+              <button class="vt on" style="height:26px;font-size:10.5px;padding:0 8px">站内发现</button>
+              <button class="vt" style="height:26px;font-size:10.5px;padding:0 8px">离线关注<span class="n" style="font-size:9px;padding:1px 5px">37</span></button>
+            </div>
+            <div class="blk acc" style="height:44px;margin-top:9px;font-size:10px;line-height:1.5">
+              关注同步状态条：站内共 44 位，本地缺 8 位<br/>［同步站内关注（新增 8）］
+            </div>
+            <div class="blk" style="height:20px;margin-top:7px">粘贴房间地址添加（支持省略场次号）</div>
+            <div class="blk" style="flex:1;margin-top:7px">为什么这里没有房间列表：SOOP 无公开全站在播接口；<br/>单个关注列表接口已用于整轮检测</div>
+          </div>
+        </div>
+        <div class="note gray" style="margin-top:9px;font-size:11.5px">
+          <b>这一段一期就是引导卡</b>：位置、段头、快捷键都按 Panda 同构预留，二期若确认到公开分类接口则整段换成卡片墙，<strong>一级导航与分段结构都不用再改</strong>。
+          若你认为「未开放」的第三项不该占位，改成两项也完全兼容（D2 方案 2），只是二期要动一次导航。
+        </div>
+      </div>
+      <div>
+        <div class="cap">视图 3 · 离线关注（37 位）</div>
+        <div class="frame">
+          <div class="app">
+            <div class="wordmark"><div class="w1">SODALive</div></div>
+            <div class="platseg"><button><span class="cdot p"></span>Panda</button><button class="on s"><span class="cdot s"></span>SOOP</button></div>
+            <div class="navtab on">直播</div><div class="navtab">录制</div>
+            <div class="searchbox"><input placeholder="搜索主播 / 房间号" /></div>
+            <div class="av s">S</div>
+          </div>
+          <div class="body">
+            <div class="viewtabs" style="margin-top:2px">
+              <button class="vt" style="height:26px;font-size:10.5px;padding:0 8px">在播关注<span class="n" style="font-size:9px;padding:1px 5px">5</span></button>
+              <button class="vt" style="height:26px;font-size:10.5px;padding:0 8px">站内发现</button>
+              <button class="vt on" style="height:26px;font-size:10.5px;padding:0 8px">离线关注<span class="n" style="font-size:9px;padding:1px 5px">37</span></button>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:10px;color:var(--ink3)">
+              <span class="chip on" style="height:20px;font-size:10px;padding:0 7px">按未播天数</span>
+              <span class="chip" style="height:20px;font-size:10px;padding:0 7px">隐藏 90 天未播 <b>11</b></span>
+              <span class="chip" style="height:20px;font-size:10px;padding:0 7px">站内已取关 <b>2</b></span>
+              <span style="margin-left:auto">每页 <b style="color:var(--ink2)">40</b> ▾</span>
+            </div>
+            <div class="ogrid" style="grid-template-columns:1fr;gap:5px;margin-top:9px">
+              <div class="orow" style="padding:6px 8px"><div class="ava" style="width:22px;height:22px"></div><div class="m"><div class="n1" style="font-size:11px">old_streak</div><div class="n2" style="font-size:9px">房间 155200771 · 上次开播 8 月 3 日 · <span class="stale">57 天未播</span></div></div><div class="acts"><span class="sw2" style="transform:scale(.8)"></span></div></div>
+              <div class="orow" style="padding:6px 8px"><div class="ava" style="width:22px;height:22px"></div><div class="m"><div class="n1" style="font-size:11px">midnight_lab</div><div class="n2" style="font-size:9px">房间 201883340 · 上次开播 9 月 28 日 · 昨天</div></div><div class="acts"><span class="sw2 on" style="transform:scale(.8)"></span></div></div>
+              <div class="orow" style="padding:6px 8px"><div class="ava" style="width:22px;height:22px"></div><div class="m"><div class="n1" style="font-size:11px">gone_room</div><div class="n2" style="font-size:9px">房间 118002310 · <span class="stale">站内已取关</span> · 本地仍保留</div></div><div class="acts"><span class="sw2" style="transform:scale(.8)"></span></div></div>
+              <div class="orow" style="padding:6px 8px"><div class="ava" style="width:22px;height:22px"></div><div class="m"><div class="n1" style="font-size:11px">vod_only</div><div class="n2" style="font-size:9px">房间 90013777 · 无开播记录</div></div><div class="acts"><span class="sw2" style="transform:scale(.8)"></span></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="note gray" style="margin-top:9px;font-size:11.5px">
+          37 行按每页 40 一屏装下，这是分段方案对「关注很多」这个场景的直接收益：<strong>离线管理不再需要先在滚动流里翻过一整面在播墙</strong>。
+        </div>
+      </div>
+    </div>
+
+    <div class="note blue" style="margin-top:16px">
+      <b>SOOP 工作区的三条专属约束（设计层面必须承认，不能照抄 Panda）</b>
+      ① 取流走本地 HLS 代理，<strong>源链接复制到外部播放器不能播</strong>，播放页要常驻说明而不是只给一个「复制」按钮；<span class="d">2026-10-01 订正：这两半都落了，但落法变了：常驻说明收成一句归因，"不能播"由第二枚「复制真实源」正面解决 —— 官方清单原址就压在代理地址的 <code class="tok">url=</code> 参数里，解出来即可，不必回主进程再要一个字段（那会造出同一件事的第二套真值）。</span>
+      ② <strong>无源保活、无备用线路</strong>，播放页对应区块显示「不适用 + 原因」，不隐藏；
+      ③ 离线行的「上次开播」来自关注列表回包的 <code class="tok">last_broad_start</code>，现状代码已解析但被丢弃 —— 本稿要求落库（见 S8 F2）。
+    </div>
+  </div>
+</section>
+
+
+
+<!-- ============================ S3 ============================ -->
+<section class="screen" id="s3">
+  <div class="page">
+    <div class="sec"><h2>3.1 卡片解剖与槽位</h2><span class="d">两平台共用同一套槽位与排版；某格取不到数据时按下表填占位，禁止塌成另一副样子</span></div>
+    <div class="anatomy">
+      <div class="lc">
+        <div class="thumb"><div class="g">16 : 9</div>
+          <div class="badges"><span class="b-live"><i></i>直播中</span><span class="b-ready">已缓存</span></div>
+          <span class="b-19">19+</span>
+          <span style="position:absolute;left:8px;bottom:8px;background:var(--tag-onimg);color:#fff;font-size:10.5px;font-weight:800;padding:3px 6px;border-radius:5px">P</span>
+        </div>
+        <div class="lc-body">
+          <div class="lc-title">⑥ 标题 · 单行省略</div>
+          <div class="lc-host"><div class="ava">⑦</div><span class="nick">⑦ 主播昵称</span><span class="uid">⑧ ID / 房间号</span></div>
+          <div class="lc-stats"><span class="kv">⑨ 观众</span><span class="kv">⑩ 点赞 / 粉丝</span><span class="dur">⑪ 时长</span></div>
+          <div class="lc-acts"><button class="btn btn-primary btn-sm">⑫ 进入房间</button><button class="btn btn-ghost btn-sm">⑬ 录制</button></div>
+        </div>
+      </div>
+      <div class="slots">
+        <div class="slot"><span class="no2">①</span><div><b>缩略图</b> · 16:9，跟随卡片裁圆角不给独立圆角。Panda 取 <code class="tok">thumbUrl</code>；SOOP 关注列表带 <code class="tok">thumb_url</code>，兜底探针路径可能为空 → 回落平台底色 + 首字，<strong>绝不出现破图图标</strong>。</div></div>
+        <div class="slot"><span class="no2">②</span><div><b>状态徽标（左上，最多 2 枚）</b> · 优先级 录制中 &gt; 直播中 &gt; 已缓存 &gt; 离线。第 3 枚（密码房 / 粉丝房）降级到右下小字，避免四枚叠成一片。</div></div>
+        <div class="slot"><span class="no2">③</span><div><b>19+ 角标（右上）</b> · <strong>只有 Panda 会点亮</strong>。<strong>这是内容属性不是平台属性</strong>，所以用状态红而不是 SOOP 黄。<span class="d">2026-10-01 订正：原稿那句「仅 Panda 与『已登录 SOOP』可见房间会带」作废 —— SOOP 那一路的 <code class="tok">is_adult</code> 平台自己会在同一场直播里改口，而它只用于展示，按用户定夺整条不取，卡片与页头自此拿不到 true。能不能取到 19+ 的源与这枚角标无关，靠的是 SOOP 登录态加账号成人认证。</span></div></div>
+        <div class="slot"><span class="no2">④</span><div><b>平台徽标（左下，图片上）</b> · <strong>只在工作区之外出现</strong>（跨平台搜索结果、录制任务、库）。工作区内平台由顶栏说一次，卡片不重复挂 —— 沿用你已确认过的那条规则。</div></div>
+        <div class="slot"><span class="no2">⑤</span><div><b>hover</b> · 卡片整体可点进播放。不做缩略图上的悬浮播放预览：Electron 里多路 <code class="tok">&lt;video&gt;</code> 预加载会打满解码器，且会与各卡片自身的 hover 阴影抢反馈。</div></div>
+        <div class="slot"><span class="no2">⑥</span><div><b>标题</b> · 13.5 / 600 单行省略。官方标题常带 [粉丝团] 前缀，<strong>不做剥离</strong>，用户要靠它判断进不进房。</div></div>
+        <div class="slot"><span class="no2">⑦</span><div><b>头像 + 昵称</b> · 外链头像保持 <code class="tok">referrerpolicy="no-referrer"</code>（现状已如此），加载失败回落首字圆底。<span class="d">2026-10-01 订正：SOOP 这一格从前不是"加载失败"而是"根本没有地址"，718 位关注清一色首字圆底；现地址按频道 ID 派生（零请求），首字圆底退回它本来的角色 —— 404 时的回落，不是默认形态。四处头像承载面统一由 <code class="tok">AvatarImg.vue</code> 画，卡片侧 <code class="tok">loading="lazy"</code>（logo 是原图，实测一枚 154×154 却 2 MB）。</span></div></div>
+        <div class="slot"><span class="no2">⑧</span><div><b>ID 槽位的平台差异</b> · Panda 显示 <code class="tok">@userId</code>；SOOP 显示<strong>裸频道名</strong> <code class="tok">tnwl9630</code>（用户认知的地址是频道名，不是登录 ID）。这一格两平台<strong>语义不同但宽度守恒</strong>。<span class="d">落地订正两笔（2026-10-01）：① 原稿写的 <code class="tok">broadNo</code> 是错的 —— 那是每场开播都会换的场次号，代码一直落的是 <code class="tok">userId</code>（频道名），这次顺手把稿子改对；② 「房间 {id}」那个前缀撤掉 —— 这一格就贴在头像与昵称旁边、前面还排着状态与标题，没有人会把它读成别的字段，加前缀等于给自说明的东西写说明书。Panda 的 <code class="tok">@</code> 留着：那是可粘贴地址的一部分（粘出去就得到 <code class="tok">@xxx</code>），而 SOOP 的频道名粘出去就是裸的。</span></div></div>
+        <div class="slot"><span class="no2">⑨–⑪</span><div><b>数据槽位</b> · 取不到填 <code class="tok">—</code> 不填 0；时长恒显示；离线卡这一格换成「未播 N 天」，颜色用告警阶而不是红。</div></div>
+        <div class="slot"><span class="no2">⑫–⑬</span><div><b>动作</b> · ⑫ 恒为「进入房间」（唯一主按钮），⑬ 在 录制 / 停止 间切换。<strong>关注与取关不上卡片</strong>，收进卡片的「…」菜单与离线行（落地为点击展开的菜单，不是系统右键菜单；播放页另给一枚页头按钮，承载矩阵见 ㉙）。</div></div>
+      </div>
+    </div>
+
+    <div class="sec"><h2>3.2 槽位取数对照（实现用）</h2><span class="d">这张表是给代码看的：标注来源与缺失兜底。<strong>「—」只留给"这一格有来源、这一帧没取到"</strong><span class="d">2026-10-01 订正：原句是"任何一格缺来源就渲染「—」"，那等于把平台的采集边界画成一格空读数。现分两档 —— 暂时取不到 = 「—」，这一平台结构性没有这个字段 = 整格省略（卡片，<code class="tok">hasSocial</code>）/ 整行不摆（播放页侧栏，<code class="tok">v-if="room.likes"</code>）。</span></span></div>
+    <table class="spec">
+      <thead><tr><th style="width:118px">槽位</th><th>Panda 来源</th><th>SOOP 来源</th><th style="width:260px">缺失时</th></tr></thead>
+      <tbody>
+        <tr><th class="k">直播状态</th><td class="mono">全站列表 / member-bj 逐房</td><td class="mono">关注列表 live.broadNo（整轮）</td><td>不可能缺。状态机只在播/离线两态，离线需连续 2 轮确认（现状逻辑保留）</td></tr>
+        <tr><th class="k">标题 / 缩略图</th><td class="mono">title, thumbUrl</td><td class="mono">live.title, live.thumb_url</td><td>标题「— 未开播 —」或「未获取到标题」；缩略图平台底色</td></tr>
+        <tr><th class="k">头像</th><td class="mono">列表 <code class="tok">userImg</code>（真字段）</td><td class="mono"><span class="d">2026-10-01 订正：关注列表整行没有一个图片字段（实测 718 行键集），头像是按频道 ID 派生的地址 <code class="tok">stimg.sooplive.com/LOGO/&lt;前2位&gt;/&lt;id&gt;/&lt;id&gt;.jpg</code>，零请求</span></td><td>404（这房没传过 logo，官方自己也挂 onerror）由 <code class="tok">AvatarImg</code> 撤下 <code class="tok">img</code>、回落首字圆底；禁止把破图画在圆位上</td></tr>
+        <tr><th class="k">开播时刻</th><td class="mono">startTime（列表模式）</td><td class="mono">live.startTime（BTIME）</td><td>时长格「—」，排序沉底</td></tr>
+        <tr><th class="k">观众数</th><td class="mono">viewers</td><td class="mono">live.viewers（仅关注列表路径）</td><td class="no">显示 —，禁止 0</td></tr>
+        <tr><th class="k">点赞 / 粉丝团</th><td class="mono">likes / fans</td><td class="na">官方无对应字段</td><td>该格换成「粉丝数」或整格省略，保持两格布局不塌陷<br/><span class="d">2026-10-01 订正：卡片那一格一直走的是"整格省略"这一支；播放页侧栏原先补一句「不适用 · SOOP 接口不返回」，与这张表的判据相反，现随字段一起撤 —— 两平台同一模板，行在不在只取决于有没有数。</span></td></tr>
+        <tr><th class="k">上次开播</th><td class="mono">需新增 <code class="tok">lastLiveAt</code> 字段</td><td class="mono">last_broad_start（已解析未落库）</td><td>「无开播记录」</td></tr>
+        <tr><th class="k">19+ / 密码 / 粉丝房</th><td class="mono">isAdult / password / type=fan</td><td class="mono">isAdult / isPw / 粉丝房标记</td><td>不显示（可选徽标，缺了不算异常）<br/><span class="d">2026-10-01 订正：SOOP 这两个旗只有列表接口给（<code class="tok">is_adult</code> / <code class="tok">is_password</code>），取源那一路看不到 —— 过去它交回一份 <code class="tok">isAdult: false</code> 又被整包覆写进库，等于每次开播擦一次真值；现按字段合并，看不见的字段不写。</span><br/><span class="d">2026-10-01 订正：列表这一路是同一处病的另一半 —— <code class="tok">broad_info</code> 偶发不带 <code class="tok">is_adult</code>，旧写法读成 false 再整包覆写，旗就隔轮闪。现解析层留 <code class="tok">undefined</code>、合并层 <code class="tok">??</code>，下播补丁只清场次属性（密码房 / 回放），房态属性（19+ / 粉丝团）留在卡上。</span><br/><span class="d">2026-10-01 复验订正：前面那句「偶发不带」被真机否证 —— 同一场次里平台<strong>明确回了 false</strong>（七轮 true→false×3→true，盲读日志 0 行）。房间级 19+ 对 SOOP 已<strong>整条不取</strong>：解析层不再读 <code class="tok">is_adult</code>，卡片与页头不再为 SOOP 画这一枚，TG 的 <code class="tok">[19+]</code> 同理；<code class="tok">is_password</code> 保留（它决定弹不弹密码框、录制带不带密码），三态与分家规矩一字未动。能不能取到 19+ 的源与此无关，靠的是 SOOP 登录态 + 账号的成人认证。</span><br/><span class="d">2026-10-01 复验补刀：「不取」不等于「库里没有」—— 已离线的 SOOP 房不再经过列表回写，旧轮的 true 会一直躺在库里并把页头点亮（实拍 papcon0206）。读库补齐（<code class="tok">store.migrateAnchor</code>）只把 soop 的 <code class="tok">tags.isAdult</code> 清成 false，Panda 的正当真值与 <code class="tok">tags:null</code> 的形状一律不动。</span></td></tr>
+        <tr><th class="k">源就绪（已缓存）</th><td class="mono">api.cachedSourceIds()</td><td class="mono">soopApi.cachedSourceIds()（<code class="tok">soop.ts:894</code> 已注册为 src-cache 供给方）</td><td>两平台同语义：预取泵只在 <code class="tok">isLive &amp;&amp; 本平台那一格的 prefetchStream</code> 时逐发（<code class="tok">watcher.ts:750</code>），未命中缓存则整枚徽标省略<br/><span class="d">2026-10-01 订正：这一格自此按平台各说各话 —— 关掉 SOOP 的预取不动 Panda 的秒开，反之亦然。</span></td></tr>
+      </tbody>
+    </table>
+    <div class="note gray">
+      <b>订正（落地时校对）</b>：本表原写「SOOP 按需重铸，无预取概念 / 该槽位恒不出现」。对照实现后该判断不成立 —— SOOP 的直播源同样进主进程 src 缓存并注册了 <code class="tok">cachedSourceIds</code> 供给方，预取泵按 <code class="tok">cfg.monitor[平台].prefetchStream</code>（此前是 <code class="tok">cfg.prefetchStream</code> 一条全局格）对两平台各自执行，因此 SOOP 卡片上的「已缓存」是真实状态而不是占位。取掉这枚徽标反而会隐瞒「点进去就能秒播」这个可用信息，故按上表改回两平台共用同一槽位语义。
+    </div>
+
+    <div class="sec"><h2>3.3 徽标体系三条硬规则</h2><span class="d">现状 6 处徽标各写各的底色与字色（rgba(255,255,255,.85) 与 rgba(0,0,0,.7) 混用），这是视觉不统一的直接来源</span></div>
+    <table class="spec">
+      <tbody>
+        <tr><th class="k">R1 承载面二选一</th><td>图片上 = 墨底 <code class="tok">rgba(15,17,21,.72)</code> + 白字；卡面/列表上 = <code class="tok">--fill</code> 底 + <code class="tok">--line</code> 描边 + 状态/平台深阶字色。<strong>不允许第三种子背景</strong>。</td></tr>
+        <tr><th class="k">R2 档位锁死（两档）</th><td><code class="tok">md</code> 21 / <code class="tok">sm</code> 18 高，字重 700–800，圆角 6（sm=5）。同一视野内只允许一档：卡片墙与列表行恒 sm，页头与卡头恒 md。<br/><strong>落地订正：</strong>原写的 <code class="tok">lg</code> 24 取消 —— 全站找不到一处需要 24 高的承载面（页头/卡头用 md 已经和 13.5px 标题齐高，再大一档就变成色块），而 <code class="tok">PlatTag</code> 曾按 sm/md/lg 三档实现，导致录制任务行里同一行混挂 md 与 sm 两档（违反本条后半句）。现组件只保留 <code class="tok">sm|md</code>，<code class="tok">size="lg"</code> 与 <code class="tok">.badge-lg</code> 由 <code class="tok">scripts/verify-design.mjs</code> D1/D2 静态禁止。</td></tr>
+        <tr><th class="k">R3 色点 + 文字恒定成对</th><td>任何徽标必须有文字，色点只是加强。<strong>禁止纯色彩编码</strong>（现状顶栏轮询状态只有一枚圆点）。反例还有一处：离线行的自动录制开关只有颜色差异，必须补 tooltip + 图标。</td></tr>
+      </tbody>
+    </table>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
+      <span class="pt md onimg p"><span class="dot"></span>Panda</span>
+      <span class="pt md onimg s"><span class="dot"></span>SOOP</span>
+      <span class="pt sm onsurf p"><span class="dot"></span>Panda</span>
+      <span class="pt sm onsurf s"><span class="dot"></span>SOOP</span>
+      <span class="b-live"><i></i>直播中</span>
+      <span class="b-rec"><i></i>录制中</span>
+      <span class="b-ready">已缓存</span>
+      <span class="b-off" style="background:var(--fill);color:var(--ink2);border:1px solid var(--line)">离线</span>
+      <span class="b-19" style="position:static">19+</span>
+      <span class="state-pill"><i></i>每 30s</span>
+      <span class="state-pill cool"><i></i>风控冷却</span>
+      <span class="state-pill err"><i></i>已暂停</span>
+    </div>
+
+    <div class="sec"><h2>3.4 控件状态表</h2><span class="d">现状缺 focus-visible 与统一禁用态，键盘操作时看不见焦点</span></div>
+    <table class="spec">
+      <thead><tr><th>控件</th><th>默认</th><th>hover</th><th>按下</th><th>焦点</th><th>禁用</th></tr></thead>
+      <tbody>
+        <tr><th class="k">主按钮</th><td>brand 底 / 白字</td><td>brand-hi</td><td>scale .98</td><td>2px brand 外环 + 2px offset</td><td>brand 30% 底 / ink3 字 / not-allowed</td></tr>
+        <tr><th class="k">次按钮</th><td>透明 + line 描边</td><td>fill 底</td><td>scale .98</td><td>同上</td><td>描边转 fill，字 ink-deco</td></tr>
+        <tr><th class="k">卡片</th><td>sh1 + 描边</td><td>升 sh2（<strong>不变描边色、不位移</strong>，否则整墙随鼠标呼吸）</td><td>—</td><td>描边转 brand + sh2</td><td>—</td></tr>
+        <tr><th class="k">离线行</th><td>sh1 + 描边</td><td>描边转 brand</td><td>—</td><td>同上</td><td>—</td></tr>
+        <tr><th class="k">开关</th><td>fillh 底</td><td>—</td><td>—</td><td>外环</td><td>透明度 40%</td></tr>
+        <tr><th class="k">chip / 排序</th><td>card 底 + line 描边</td><td>fill 底</td><td>—</td><td>外环</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <div class="note" style="margin-top:12px"><b>动效预算</b>：只允许颜色/阴影过渡（150ms）与按下 scale(.98)。不做卡片入场动画、不做位移动画 —— 轮询每 30s 重排一次列表，任何入场动画都会变成每半分钟抖一次屏，这是「精美」反向失效的地方。</div>
+  </div>
+</section>
+<!-- ============================ S4 ============================ -->
+<section class="screen" id="s4">
+  <div class="app">
+    <div class="wordmark"><div class="w1">SODALive</div><div class="w2">MONITOR</div></div>
+    <div class="sepv"></div>
+    <div class="platseg"><button class="on p"><span class="cdot p"></span>Panda</button><button><span class="cdot s"></span>SOOP</button></div>
+    <div class="navtab">直播</div><div class="navtab on">录制<span class="cnt red">2</span></div>
+    <div class="searchbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="搜索标题 / 主播" /></div>
+    <span class="state-pill"><i></i>磁盘可用 412 GB</span>
+    <div class="av p">P</div><div class="wctl"><span>–</span><span>□</span><span>×</span></div>
+  </div>
+  <div class="body">
+    <div class="ph">
+      <div><h3>录制管理</h3><div class="sub">2 路进行中 · 本次已写入 1.8 GB · 指标每 2s 刷新，码率为实时差分</div></div>
+      <div class="right"><span class="chip on">本工作区 Panda <span class="n">2</span></span><span class="chip">全部平台 <span class="n">5</span></span></div>
+    </div>
+
+    <div class="group">
+      <div class="bar"><h4>进行中 <span class="n">2</span></h4><div class="tools"><span>分段 30 分钟/段</span></div></div>
+      <div class="task">
+        <div class="th2">LIVE</div>
+        <div class="m">
+          <div class="row1">今晚排位上分，赢了睡觉 <span class="pt sm onsurf p"><span class="dot"></span>Panda</span><span class="b-live" style="font-size:10.5px"><i></i>直播</span><span class="b-off" style="background:var(--fill);color:var(--ink2);border:1px solid var(--line)">自动</span></div>
+          <div class="row2">
+            <span><span class="k">已录</span> 2:14:07</span>
+            <span><span class="k">已写入</span> 1.4 GB · 5 段</span>
+            <span><span class="k">实时码率</span> 5 820 kbps</span>
+            <span style="width:88px"><span class="meter"><i style="width:72%"></i></span></span>
+            <span><span class="k">目录</span> …/pandalive/zenith6666/</span>
+          </div>
+        </div>
+        <div class="pipe"><span class="p on">拉取直播源</span><span class="a">›</span><span class="p on">录制中</span><span class="a">›</span><span class="p">转码 MP4</span></div>
+        <button class="btn btn-danger-ghost btn-sm">■ 停止</button>
+        <button class="btn btn-ghost btn-sm">进直播间</button>
+      </div>
+      <div class="task">
+        <div class="th2" style="background:linear-gradient(135deg,#2A2314,#3E3520)">VOD</div>
+        <div class="m">
+          <div class="row1">9 月 28 日 精选回放 <span class="pt sm onsurf s"><span class="dot"></span>SOOP</span><span class="b-live" style="font-size:10.5px;background:var(--brand)"><i style="background:#fff"></i>回放</span></div>
+          <div class="row2">
+            <span><span class="k">已下载</span> 51:20</span>
+            <span><span class="k">已写入</span> 612 MB · 单文件</span>
+            <span><span class="k">下载速度</span> 3.4 MB/s</span>
+            <span style="width:88px"><span class="meter"><i style="width:34%"></i></span></span>
+            <span><span class="k">进度</span> 已下载 51 分 / 估算全长 2:30:00</span>
+          </div>
+        </div>
+        <div class="pipe"><span class="p on">下载中</span><span class="a">›</span><span class="p">转码 MP4</span></div>
+        <button class="btn btn-danger-ghost btn-sm">■ 取消</button>
+        <button class="btn btn-ghost btn-sm">进回放间</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="bar">
+        <h4>库 <span class="n">128</span></h4>
+        <div class="tools"><span class="chip on">全部</span><span class="chip">直播录制</span><span class="chip">回放下载</span><span class="chip">整文件</span><span class="chip">出错 <span class="n">3</span></span><span style="width:1px;height:14px;background:var(--line)"></span><span class="chip on">本工作区</span><span class="chip">全部平台</span></div>
+      </div>
+      <div class="ogrid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr))">
+        <div class="orow">
+          <div class="ava" style="border-radius:8px;background:linear-gradient(135deg,#262A31,#3D424A)"></div>
+          <div class="m"><div class="n1">深夜聊天室 · 10 月 3 日</div><div class="n2"><span class="pt sm onsurf p"><span class="dot"></span>Panda</span> @nightowl · 3:02:14 · 1.1 GB · 6 段</div></div>
+          <div class="acts"><button class="btn btn-ghost btn-sm">合并</button><button class="iconbtn">▶</button></div>
+        </div>
+        <div class="orow" style="border-color:rgba(229,72,77,.4)">
+          <div class="ava" style="border-radius:8px;background:linear-gradient(135deg,#3A2027,#4C2C35)"></div>
+          <div class="m"><div class="n1">점심 먹방 · 10 月 2 日</div><div class="n2"><span class="pt sm onsurf s"><span class="dot"></span>SOOP</span> 房间 220913777 · 00:41 · 源停滞，自动续录 3 次仍失败</div></div>
+          <div class="acts"><button class="btn btn-ghost btn-sm">日志</button><button class="iconbtn del">✕</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page">
+    <div class="sec"><h2>4.1 录制 / 库为什么不按平台拆成两级页</h2><span class="d">你说这两页「似乎不需要大的改动」—— 我同意，并说明为什么这个判断是对的（避免被读成漏改）。落地时判定又往前走了一步：连「两页」都不必，库并进录制页第三段（㉒），但跨平台不拆平台的理由原样成立</span></div>
+    <table class="spec">
+      <tbody>
+        <tr><th class="k">共用管线</th><td>拉流 → 分段 TS → remux MP4 → 合并 的实现两平台几乎完全共享，任务状态机也只有一套。拆成两页会得到两份一模一样的表格。</td></tr>
+        <tr><th class="k">磁盘预算是全局的</th><td>「磁盘剩余阈值」是应用级闸门不是平台级。用户在录制页要看的是「我还能录多久」，这个数必须跨平台汇总。</td></tr>
+        <tr><th class="k">平台以 chip 提供</th><td>结论：<strong>平台筛选只挂在「库」这一段上</strong>，默认跟随当前工作区（进页即已筛好），可切回「全部平台」；「进行中」不设平台 tab —— 磁盘闸门与字节总量都是应用级的，而这一页没有「在播 / 发现 / 离线」那种视图，多一层筛选只会多出一种「上面的筛选只管上面」的歧义。既满足「专注一个平台」，又不强迫用户切两次页面才能看总占用。</td></tr>
+        <tr><th class="k">落盘结构不变</th><td><code class="tok">保存目录/平台/主播名(主播ID)/</code>，平台目录恒为 <code class="tok">pandalive</code> / <code class="tok">soop</code>（磁盘上是路径片段，不跟应用品牌改名走，否则历史文件与库记录失联）。</td></tr>
+      </tbody>
+    </table>
+
+    <div class="sec"><h2>4.2 这两页必须改的两处（正确性，不是美观）</h2><span class="d">改动很小但是 bug 级</span></div>
+    <div class="note">
+      <b>① 跨平台同名房间必须按 <code class="tok">platform:userId</code> 分组</b>：现状视频库按主播名分组，两平台昵称相同（韩文 ID 复用极常见）就会把不同平台的视频并进同一个主播页，
+      点进去还能同时看到两平台的文件却归在一个「主播」名下。<code class="tok">roomKey(platform, userId)</code> 在直播页已经用了 —— 库与录制页要跟上同一主键，展示仍用昵称。
+    </div>
+    <div class="note gray" style="margin-top:9px">
+      <b>② 分组维度决定平台徽标是否出现</b>：按主播分组 → 每行挂平台徽标（主播身份是平台相关的）；按日期分组 → 不挂（日期平台无关）。
+      统计保持全局口径，并补一行「其中 Panda 84 · SOOP 44」，让平台占比可读而不用切页面 —— 库并入录制页后这条更强了：独立页的三枚统计胶囊收成一行「共 128 个视频 · 41h · 12.4 GB · 其中 …」，磁盘数字由页头概览条给一个源，不在同屏出现第二个。
+    </div>
+    <div class="note gray" style="margin-top:9px">
+      <b>③ 「分段 N 分钟/段」只跟直播任务同屏</b>：段头摘要里那个 N 来自 <code class="tok">splitSeconds</code>，而回放分支是 <code class="tok">-c copy</code> 单 TS 直出（<code class="tok">recorder.ts</code> 的两条 spawn 分支写死，不经分段）—— 全是回放下载时还挂这句话，等于宣称一个当下不生效的参数。<span class="d">落地订正（2026-09-30 二次）：磁盘那半句撤了 —— 概览条第三格已给 GB 数，段头再复读一句「磁盘充足」是同一屏两处说同一件事（见订正 ㉟）。</span>现 <code class="tok">RecordingsView.secCaption</code> 只剩分段时长，全回放时该栏为空、连分隔线一起收掉。<span class="d">落地订正（2026-10-01）：这一句现在有两种说法 —— 分段时「分段 N 分钟/段」，<code class="tok">splitSeconds = 0</code> 时「不分段 · 整场单文件」（<code class="tok">rec.segOff</code>）。0 是一档显式取值，不是"没设置"，所以它不得和设置未到一起糊成「—」，也不得被 <code class="tok">|| 900</code> 之类的兜底静默改回 15 分钟。</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S5 ============================ -->
+<section class="screen" id="s5">
+  <div class="app">
+    <div class="wordmark"><div class="w1">SODALive</div><div class="w2">MONITOR</div></div>
+    <div class="sepv"></div>
+    <div class="platseg"><button class="on p"><span class="cdot p"></span>Panda</button><button><span class="cdot s"></span>SOOP</button></div>
+    <div class="navtab on">直播</div><div class="navtab">录制</div>
+    <div class="searchbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="搜索当前平台的主播 / 标题" /></div>
+    <div class="av p">P</div><div class="wctl"><span>–</span><span>□</span><span>×</span></div>
+  </div>
+  <div class="body">
+    <div class="ph">
+      <div>
+        <h3><button class="btn btn-ghost btn-sm">‹ 返回 Panda 直播</button> 今晚排位上分，赢了睡觉</h3>
+        <div class="sub">开播于 09:50:24（KST）· 已播 2:14:07 · 观众 1.2 万</div>
+      </div>
+      <div class="right"><button class="btn btn-primary btn-sm">⏺ 开始录制</button><button class="btn btn-ghost btn-sm">⬇ 下载回放</button><button class="btn btn-ghost btn-sm">★ 已关注</button></div>
+    </div>
+    <div class="player" style="margin-top:16px">
+      <div>
+        <div class="stage">
+          <div class="center">正在获取直播流…<br/><span style="color:#4C535E;font-size:11px">IVS 直连 · 最高档 · 不经过本地代理</span></div>
+          <div class="ctrls"><span>▶</span><span>音量 60</span><span style="flex:1"></span><span>清晰度：最高档 ▾</span><span>线路：主线 ▾</span><span>⟳ 刷新</span><span>⛶</span></div>
+        </div>
+        <div class="side-panel" style="margin-top:14px">
+          <div class="kvrow"><span class="k">当前播放源</span><span class="v mono">https://prod-es-…/index.m3u8</span><button class="btn btn-ghost btn-sm">复制</button></div>
+          <div class="d" style="margin:2px 0 0">Panda 这一屏只有一枚「复制」：IVS 直连，屏上那串就是官方地址，给第二枚等于造一个恒等的假选项（SOOP 那一屏才是两枚，见下方 SOOP 侧栏）。</div>
+          <div class="kvrow"><span class="k">获取时间</span><span class="v">12:04:33（21s 前）</span></div>
+          <div class="kvrow"><span class="k">源保活</span><span class="v" style="color:var(--ok-ink)">运行中 · 3 档在手 · 主档心跳 8s 前</span></div>
+          <div class="d" style="margin:2px 0 0">这一格原写「3 档齐养 · 心跳 8s 前」—— 那时每源每轮把 5 档各点一发。此后心跳只点主档一发，而"手上有几档"是缓存里那批长效地址的属性、不是心跳发数，读数随之改口成「N 档在手 · 主档心跳」：减发不许把这一格读成「1 档」骗人（D71b/D71d）。</div>
+          <div class="kvrow"><span class="k">备用线路</span><span class="v">备用 1（自动选档）· 可切换</span></div>
+          <div class="kvrow"><span class="k">上次失效</span><span class="v na">无</span></div>
+          <div class="kvrow"><span class="k">失效自动续录</span><span class="v">已开启 · 连续上限 3 次</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="side-panel">
+          <div class="sethead"><div class="t">房间信息</div><div class="s">随轮询每 30s 刷新 <span class="d" style="font-weight:400">/ 「标签」一行已撤掉：房态由页头徽标承载，普通房那一行只剩「—」</span></div></div>
+          <div class="kvrow"><span class="k">主播</span><span class="v">zenith6666</span></div>
+          <div class="kvrow"><span class="k">平台</span><span class="v"><span class="pt sm onsurf p"><span class="dot"></span>Panda</span></span></div>
+          <div class="kvrow"><span class="k">观众 / 点赞</span><span class="v">12 483 / 34 210</span></div>
+          <div class="kvrow"><span class="k">粉丝团</span><span class="v">1 842</span></div>
+        </div>
+        <div class="side-panel" style="margin-top:12px">
+          <div class="sethead"><div class="t">本房间录制参数</div><div class="s">覆盖全局设置，仅对本次任务生效</div></div>
+          <div class="kvrow"><span class="k">输出</span><span class="v">TS 分段 → MP4</span></div>
+          <div class="kvrow"><span class="k">分段</span><span class="v">30 分钟/段 <span class="d" style="font-weight:400">/ 不分段 · 单文件</span></span></div>
+          <div class="kvrow"><span class="k">保存目录</span><span class="v mono">…/pandalive/zenith6666/</span></div>
+          <div class="kvrow"><span class="k">开播自动录制</span><span class="v" style="color:var(--ok-ink)">已开启</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="sec"><h2>5.1 并排：SOOP 播放页只改这几处</h2><span class="d">其余同构。「不适用」区块显示而非隐藏，并给一句原因</span></div>
+    <div class="cmp">
+      <div>
+        <div class="cap">Panda 播放页 · 独占能力</div>
+        <table class="spec">
+          <tbody>
+            <tr><th class="k">取流</th><td>IVS 直连 m3u8，复制到外部播放器<strong>能播</strong>（Referer 要求写进 tooltip）</td></tr>
+            <tr><th class="k">源保活</th><td>心跳养会话，退出观看后满员房可凭旧源继续看 —— 面板这一行含手上有几档与主档上次心跳时刻<span class="d">（心跳那一格：已收成每源一轮只点主档一发，"档数"因此是缓存里那批长效地址的属性，不再是心跳发数）</span></td></tr>
+            <tr><th class="k">备用线路</th><td>主线 + N 条备用，可手动切档，面板显示当前线路</td></tr>
+            <tr><th class="k">清晰度</th><td>官方分档，默认「最高档」</td></tr>
+            <tr><th class="k">密码房</th><td>本次输入的密码用于本任务录制（面板需回显「密码已提供」而非再问一次）</td></tr>
+            <tr><th class="k">回放</th><td><code class="tok">liveType=rec</code>，可整场下载</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="cap">SOOP 播放页 · 同一区块的写法</div>
+        <table class="spec">
+          <tbody>
+            <tr><th class="k">取流</th><td>本地 HLS 代理 <code class="tok">127.0.0.1:PORT</code>；面板头两枚出口各复制各的（由 D43 锁死）——「复制」给屏上这串本机正在用的代理地址，「复制真实源」从它的 <code class="tok">url=</code> 参数解出官方清单（零请求、零新增字段）；旁注随之缩成一句只归因「本地代理源 · 请求头由应用注入」，不再警告"复制出去放不了"，因为出口已经给在那里了</td></tr>
+            <tr><th class="k">源保活</th><td class="no">显示「不适用 · SOOP 源按需重铸」，不隐藏整行</td></tr>
+            <tr><th class="k">备用线路</th><td class="na">官方无线路列表 —— 区块显示「不适用」</td></tr>
+            <tr><th class="k">清晰度</th><td>preset 按 <code class="tok">original / hd / sd</code> 降序，档位标签用<strong>语义名</strong>而不是「档位 3」</td></tr>
+            <tr><th class="k">开播时刻</th><td>取 <code class="tok">BTIME</code>，与关注列表 <code class="tok">startTime</code> 同源，不二次推算</td></tr>
+            <tr><th class="k">needLogin</th><td>整屏拦截态：说明「该房间需要 SOOP 登录态（19+ / 地区限制）」+「去登录」主按钮，<strong>不给空播放器</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="sec"><h2>5.2 统一命名表</h2><span class="d">落地时按此表同时改 zh-CN 与 en-US 两份字典，避免只改中文留一半</span></div>
+    <table class="spec">
+      <thead><tr><th>概念</th><th>统一称谓</th><th>现状（需替换）</th></tr></thead>
+      <tbody>
+        <tr><th class="k">应用自己</th><td>SODALive Monitor（短标 SODALive）</td><td>已改完；<strong>平台名 <code class="tok">pandalive</code> 相关引用严禁连带替换</strong>（枚举、服务文件名、目录名、域名）</td></tr>
+        <tr><th class="k">平台 1</th><td>Panda（徽标/顶栏）· PandaLive（正文首次）</td><td>PandaLive / pandalive / 潘达 混用 —— <strong>「潘达」一律不出现</strong></td></tr>
+        <tr><th class="k">平台 2</th><td>SOOP（徽标/顶栏）· SOOPLive（正文首次）</td><td>SOOP / SOOPLive / sooplive 混用</td></tr>
+        <tr><th class="k">一级页面</th><td>直播 · 录制（其内第三段为「库」）</td><td>「直播大厅」「已关注」合并后必须只剩一个名字：<code class="tok">/:plat/live</code> → 「直播」；「视频库」作为独立页面已收敛为录制页的「库」段（㉒），导航与页头不再出现「视频库」四字</td></tr>
+        <tr><th class="k">返回目标</th><td>从哪来回哪去：上一站是同平台的直播页/录制页就原路返回（连 <code class="tok">?view=</code> 与滚动位一起带回），栈空或来自对面平台才兜底「返回 {平台}直播」<br/><span class="d">落地订正（2026-10-01 实机）：本稿原案「返回 {平台}直播」被照抄成写死的 <code class="tok">router.push({name:'live'})</code>，于是从站内发现、离线段、甚至录制页/库进房后点返回，一律被甩到「在播关注」—— 用户的原话是「不要跨域，这样体验非常不好」。返回按钮写的就是它会去的地方：<code class="tok">backTarget</code> 一处同时给出目的地与文案（「返回站内发现 / 返回离线关注 / 返回录制页 / 返回 {平台}直播」），由 D31a~g 锁死；四格实机复验（发现段·录制页·跨平台·离线段）+ 英文态 <code class="tok">Back to Discover</code>，返回后滚动位仍在原处（900px）。</span></td><td><code class="tok">player.backExplore</code> =「返回大厅」，对 SOOP 房间语义错误</td></tr>
+        <tr><th class="k">库的成品归类</th><td>直播录制 · 回放下载 · <strong>整文件</strong> · 出错<br/><span class="d">落地订正（2026-10-01）：原「已合并」一档改名「整文件」—— 手动合并的产物与「不分段」录出来的成品是同一个形状（盘上一个不带 <code class="tok">_NNNN</code> 后缀的文件），分两档等于让用户先理解我们的实现史。库里不记"当初怎么录的"。</span></td><td>已合并 / 整文件 / 单文件 三种说法；按来源分叉出的第二档</td></tr>
+        <tr><th class="k">数据缺失</th><td>—（破折号）</td><td>0 / 空串 /「暂无」三种混用</td></tr>
+        <tr><th class="k">源就绪</th><td>已缓存（徽标）· 直播源已就绪（正文）</td><td>已缓存 / 就绪 / 预取 混用</td></tr>
+        <tr><th class="k">关注动作</th><td>关注 · 取消关注（按钮）/ 已关注（状态）<br/><span class="d">落地订正（2026-10-01）：这套动词现在由对话框自己按平台成套，不再共用一个「关注主播」弹窗 —— Panda 侧「关注 Panda 主播 / 关注 / 已关注：{nick}」，SOOP 侧「添加 SOOP 房间 / 添加 / 已添加：{nick}」，标题·示例·占位符·成功提示·错误归因五处各走各的键（由 D36 锁死）。</span></td><td>关注 / 收藏 / 加入 混用；SOOP 侧另有「添加房间」<span class="d">2026-10-01：SOOP 的「添加房间」已从"混用的第三种"升格为平台专属动词，两平台各自成套。</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+<!-- ============================ S6 ============================ -->
+<section class="screen" id="s6">
+  <div class="app">
+    <div class="wordmark"><div class="w1">SODALive</div><div class="w2">MONITOR</div></div>
+    <div class="sepv"></div>
+    <div class="platseg"><button class="on p"><span class="cdot p"></span>Panda</button><button><span class="cdot s"></span>SOOP</button></div>
+    <div class="navtab">直播</div><div class="navtab">录制</div>
+    <div class="searchbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input placeholder="搜索设置项" /></div>
+    <div class="av">设</div><div class="wctl"><span>–</span><span>□</span><span>×</span></div>
+  </div>
+  <div class="body">
+    <div class="ph">
+      <div><h3>设置</h3><div class="sub">修改在「保存设置」后生效；轮询相关变更保存后立即重拉一轮</div></div>
+      <div class="right">
+        <span class="chip on" style="color:var(--warn-ink);border-color:var(--warn);background:var(--warn-bg)">有 2 项未保存</span>
+        <button class="btn btn-ghost btn-sm">放弃更改</button><button class="btn btn-primary btn-sm">保存设置</button>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:168px 1fr;gap:16px;margin-top:16px;align-items:start">
+      <div class="side-panel">
+        <div class="kvrow" style="color:var(--brand);font-weight:700"><span>外观</span></div>
+        <div class="kvrow"><span>录制</span></div>
+        <div class="kvrow"><span>网络</span></div>
+        <div class="kvrow"><span>通知与行为</span></div>
+        <div class="kvrow"><span>数据与日志</span></div>
+        <div class="kvrow"><span>Panda</span></div>
+        <div class="kvrow"><span>SOOP</span></div>
+        <div class="kvrow"><span>关于</span></div>
+      </div>
+      <div>
+        <div class="setgroup">
+          <div class="sethead"><div class="t">外观与启动</div><div class="s">原稿这一节叫「监控节奏（全局）」，落地时拆掉了 —— 见下方订正</div></div>
+          <div class="srow">
+            <div class="lab"><div class="l">启动默认工作区</div><div class="d"><b>本稿新增项</b>：决定冷启动落在哪一页，替代现状的「恒进大厅」</div></div>
+            <div class="after"><div class="seg"><button class="on">记住上次</button><button>Panda</button><button>SOOP</button></div></div>
+          </div>
+          <div class="note gray" style="margin:8px 0 0">
+            <b>订正（2026-10-01 落地时改口）</b>：这一节草图把「检测间隔」摆在两平台共用的全局位，理由是"一轮 Panda + 一轮 SOOP 构成一个周期" —— 那个周期<strong>已经不存在</strong>：轮询引擎现在是两套独立定时器，各按自己那一格的间隔发车，Panda 熔断冷却期间 SOOP 照跑。
+            于是这一节只剩「启动默认工作区」一项（它是全局的），<strong>检测间隔 / 单请求节流 / 开播预取三格各自搬进下面的平台节</strong>，左栏导航随之从六档收成五档 + 平台两档 + 关于（「监控」那一档连同双语死键一起绝迹）。老库里那一格共用值在首次读库时铺给两平台各自那一格，行为等价。
+          </div>
+        </div>
+
+        <div class="setgroup">
+          <div class="sethead"><div class="t">Panda 采集</div><div class="s">仅作用于 PandaLive；风控靠单请求节流 + 冷却退避</div></div>
+          <div class="srow">
+            <div class="lab"><div class="l">检测模式</div><div class="d">~~列表模式同时驱动「站内发现」段；逐个模式下发现段没有数据源，会显示引导提示~~ <span class="d">2026-10-02 整体改口：大厅与检测模式分家 —— 发现段的数据源是「站在这一屏时按需拉的那几页全站榜」，与"我的关注怎么查"无关；那句话连同它的「切回列表模式」出口一起删净（<code class="tok">emptyDiscoverPerAnchor</code> / <code class="tok">gotoDetectList</code>，D53c 锁绝迹），模式说明改口成只讲关注那一半（<code class="tok">watchModeDesc</code>，D53e）</span></div></div>
+            <div class="after"><div class="seg"><button class="on">列表模式</button><button>逐个模式</button></div></div>
+          </div>
+          <div class="srow">
+            <div class="lab"><div class="l">检测间隔</div><div class="d">~~每轮拉一次全站列表（翻页）；~~列表模式建议 ≥ 10s，逐个模式请 ≥ 60s 防风控<span class="d"> —— 此后这一格归 Panda 自己，SOOP 那一格在下面的 SOOP 节里</span><span class="d">—— 此后"每轮拉全站列表（翻页）"这句也不成立了：列表模式每轮只发一发站内关注列表（实测 158 关注 1 发 ≈90KB，旧链路 4 页 ≈403KB），屏上那一格的建议值文案随之改口，D53f 锁死</span></div></div>
+            <div class="after"><div class="seg"><button>10</button><button class="on">30</button><button>60</button><button>120</button></div><span class="ro">下次 <b>12:05:01</b></span></div>
+          </div>
+          <div class="srow">
+            <div class="lab"><div class="l">单请求节流</div><div class="d">每个网络请求之间的最小间隔，带随机抖动；逐个模式请 ≥ 60s<span class="d"> —— 此后这一格只作用于 Panda</span></div></div>
+            <div class="after"><span class="ro">间隔 <b>800</b> ms ± <b>300</b></span></div>
+          </div>
+          <div class="srow">
+            <div class="lab"><div class="l">开播预取直播源</div><div class="d">卡片上的「已缓存」徽标由此产生<span class="d"> —— 此后这一格只作用于 Panda</span></div></div>
+            <div class="after"><span class="sw2 on"></span></div>
+          </div>
+          <div class="srow">
+            <div class="lab"><div class="l">直播源保活</div><div class="d">心跳养会话；退出观看后满员房也能凭旧源继续看<span class="d">—— 此后这一格多了两条边界：周期由 15s 换成 60s 基准并按缓存规模自适应(封顶 120s)，而缓存不再无限养 —— 已下播 30 分钟 / 不在关注表 10 分钟即收手，「已缓存」徽标随之熄灭(宁熄灭不骗人)</span><span class="d">—— 再加两条：这一格管的从来只是"心跳"，扇出面随之收成每源一轮只点主档一发(副档是长效签名地址，实测静置 15 分钟 15/15 全活，不靠心跳续命)；而把它关掉只关心跳，年龄收手那趟扫描照跑(零网络，它是「已缓存」徽标不说谎的前提，D69h)。</span></div></div>
+            <div class="after"><span class="sw2 on"></span></div>
+          </div>
+        </div>
+
+        <div class="setgroup">
+          <div class="sethead"><div class="t">SOOP 采集</div><div class="s">本平台只有「关注列表整轮 + 兜底逐房探针」一条链路，可调项天然更少 —— <b>读状态，不给假开关</b>；<span class="d">此后这一节自己握有节奏三格，与 Panda 节同构</span></div></div>
+          <div class="srow">
+            <div class="lab"><div class="l">采集方式</div><div class="d">官方站内关注列表单个请求返回全部关注 + 实时在播；失败时降级为逐房播放页探针（此时人气不可得）</div></div>
+            <div class="after"><span class="ro">固定 · 关注列表整轮</span><span class="ro">上轮 <b>1</b> 请求 / <b>640</b> ms</span></div>
+          </div>
+          <div class="srow">
+            <div class="lab"><div class="l">检测间隔</div><div class="d">每轮只发一发关注列表，与 Panda 不在同一条时间轴上<span class="d"> —— 此后这一格连同节流、预取一起归 SOOP 自己：Panda 在冷却时这一格照跑，改它不惊动 Panda 的退避</span></div></div>
+            <div class="after"><div class="seg"><button>15</button><button class="on">30</button><button>60</button><button>120</button></div><span class="ro">下次 <b>12:04:46</b></span></div>
+          </div>
+          <div class="srow">
+            <div class="lab"><div class="l">单请求节流</div><div class="d">只在关注列表不可用、降级逐房探针时生效<span class="d"> —— 此后这一格是 SOOP 自己的，与 Panda 那格互不影响</span></div></div>
+            <div class="after"><span class="ro">间隔 <b>1200</b> ms ± <b>300</b></span></div>
+          </div>
+          <div class="srow">
+            <div class="lab"><div class="l">开播预取直播源</div><div class="d">开播翻转后立刻拉一次源写缓存，点进房间零等待<span class="d"> —— 此后按平台各开各的：关掉 SOOP 这一格不影响 Panda 的秒开</span></div></div>
+            <div class="after"><span class="sw2 on"></span></div>
+          </div>
+          <div class="srow">
+            <div class="lab"><div class="l">登录态依赖</div><div class="d">匿名只可看公开房间；19+ 与限区房间需登录，检测失败计入页头 banner</div></div>
+            <div class="after"><span class="ro">当前 <b>已登录</b> · 1004ysus</span><button class="btn btn-ghost btn-sm">去账号页</button></div>
+          </div>
+          <div class="srow">
+            <div class="lab"><div class="l">账密自动重登</div><div class="d">会话过期时后台自动重登一次；凭据经系统安全存储加密，仅存本机</div></div>
+            <div class="after"><span class="sw2 on"></span><span class="ro">已托管 <b>1004***</b></span></div>
+          </div>
+          <div class="srow">
+            <div class="lab"><div class="l">源保活 / 备用线路</div><div class="d">官方无对应机制，应用侧不做模拟</div></div>
+            <div class="after"><span class="ro" style="color:var(--ink-deco)">不适用</span></div>
+          </div>
+        </div>
+
+        <div class="setgroup">
+          <div class="sethead"><div class="t">开播自动录制（默认值）</div><div class="s">新增关注主播时的初始值；单个主播可在直播页离线行覆盖</div></div>
+          <div class="srow"><div class="lab"><div class="l">Panda</div></div><div class="after"><div class="seg"><button class="on">关闭</button><button>开启</button></div><span class="ro">已单独覆盖 <b>4</b> 位</span></div></div>
+          <div class="srow"><div class="lab"><div class="l">SOOP</div></div><div class="after"><div class="seg"><button>关闭</button><button class="on">开启</button></div><span class="ro">已单独覆盖 <b>3</b> 位</span></div></div>
+        </div>
+
+        <div class="setgroup">
+          <div class="sethead"><div class="t">通知（按平台矩阵）</div><div class="s">系统通知与 Telegram 推送共用这张矩阵；现状是全局开关，两平台混排后无法只关一个平台</div></div>
+          <div class="note gray" style="margin:0 0 8px">
+            <b>订正（落地时定的行轴）</b>：本节草图把「开播 / 下播」并成一行，落地拆回<strong>开播 · 下播 · 录制 · 异常</strong>四行。
+            理由是迁移必须行为等价 —— 现状 <code class="tok">tgLive</code> 默认开、<code class="tok">tgOffline</code> 默认关，合并成一行就只能取一个默认值，
+            要么把用户一直抱怨的下播刷屏重新打开，要么把开播通知关掉。会话失效一行也按平台各自成格（它是 <code class="tok">platform</code> 维度的事件，草图里的「两平台共用一行」不成立）。
+          </div>
+          <table class="spec" style="border:none;border-radius:0">
+            <thead><tr><th>事件</th><th class="c">系统通知</th><th class="c">Telegram</th><th class="c">声音</th></tr></thead>
+            <tbody>
+              <tr><td><b>Panda</b> 开播</td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="sw2" style="display:inline-block"></span></td></tr>
+              <tr><td><b>Panda</b> 下播</td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="na">—</span></td></tr>
+              <tr><td><b>Panda</b> 录制（完成 / 出错）</td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="na">—</span></td></tr>
+              <tr><td><b>Panda</b> 异常（熔断 / 登录态失效）</td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="na">—</span></td></tr>
+              <tr><td><b>SOOP</b> 开播</td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="sw2" style="display:inline-block"></span></td></tr>
+              <tr><td><b>SOOP</b> 下播</td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="na">—</span></td></tr>
+              <tr><td><b>SOOP</b> 录制（完成 / 出错）</td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="na">—</span></td></tr>
+              <tr><td><b>SOOP</b> 异常（整轮失败 / 登录态失效）</td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="sw2" style="display:inline-block"></span></td><td class="c"><span class="na">—</span></td></tr>
+            </tbody>
+          </table>
+          <div class="note gray" style="margin:8px 0 0"><b>订正（2026-09-30 默认值）</b>：默认矩阵<strong>全关</strong>（上表即默认态）—— 通知是往外发声的通道，未经确认就默认出声等于拿用户的通知栏替应用说话；想要哪一格由用户在平台节内的矩阵逐格打开。老库迁移不变量收一句：<strong>带键老库逐格等价</strong>（旧全局开关照旧展开），<strong>缺键 = 从未配置 = 关</strong>（与 DEFAULT_SETTINGS 同值）。</div>
+          <div class="srow"><div class="lab"><div class="l">Telegram Bot Token</div><div class="d">已保存到本机加密保险箱；输入新值可替换，留空并保存不会清除。<b>日志与推送正文均不回显 token</b></div></div><div class="after"><span class="ro">已设置 · ****:****BCD</span><button class="btn btn-ghost btn-sm">发送测试消息</button><button class="btn btn-ghost btn-sm" style="color:var(--live-ink)">清除</button></div></div>
+          <div class="srow"><div class="lab"><div class="l">TG 专用代理</div><div class="d">留空则跟随全局代理</div></div><div class="after"><span class="ro">跟随全局 · <b>已配置</b></span></div></div>
+        </div>
+
+        <div class="setgroup">
+          <div class="sethead"><div class="t">录制 / 网络 / 数据（结构不变，仅换皮）</div><div class="s">这几节的语义与平台无关，结构不动</div></div>
+          <div class="srow"><div class="lab"><div class="l">保存目录</div><div class="d">落盘结构：保存目录 / 平台 / 主播名(主播ID)/，平台目录恒为 pandalive · soop</div></div><div class="after"><span class="ro mono">D:\11\pd-monitor\data\records</span><button class="btn btn-ghost btn-sm">选择目录</button></div></div>
+          <div class="srow"><div class="lab"><div class="l">磁盘剩余阈值</div><div class="d">低于阈值时拒绝开始新录制（应用级闸门，不分平台）</div></div><div class="after"><span class="ro">阈值 <b>10</b> GB · 当前可用 <b>412</b> GB</span></div></div>
+          <div class="srow"><div class="lab"><div class="l">代理地址</div><div class="d">同时作用于 API 与 ffmpeg 拉流；直连可用时留空</div></div><div class="after"><span class="ro">已配置</span></div></div>
+          <div class="srow"><div class="lab"><div class="l">关窗最小化托盘</div><div class="d">后台持续监控两平台</div></div><div class="after"><span class="sw2 on"></span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page">
+    <div class="note gray">
+      <b>设置页改动的判据</b>：一条设置只有在「对两平台含义相同」时才留在全局节；含义不同的必须下沉到平台节，<strong>且不给用户一个改了没反应的开关</strong> ——
+      这就是 SOOP 采集节里有三行只读状态框（<code class="tok">.ro</code>）而不是开关的原因。假开关比没有开关更糟：用户改了、保存了、行为没变，最后怀疑是程序坏了。
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S7 ============================ -->
+<section class="screen" id="s7">
+  <div class="page">
+    <div class="sec"><h2>7.1 状态与空态一览</h2><span class="d">现状最弱的一环：空态只有一句「暂无」，不告诉用户为什么空、下一步做什么。以下每一条都要能归因</span></div>
+    <div class="cmp">
+      <div class="frame">
+        <div class="app">
+          <div class="wordmark"><div class="w1">SODALive</div></div>
+          <div class="platseg"><button><span class="cdot p"></span>Panda</button><button class="on s"><span class="cdot s"></span>SOOP</button></div>
+          <div class="navtab on">直播</div><div class="navtab">录制</div>
+          <div class="searchbox"><input placeholder="搜索主播 / 房间号" /></div>
+          <span class="state-pill err"><i></i>已暂停</span><div class="av s">S</div>
+        </div>
+        <div class="body">
+          <div class="banner err" style="font-size:11px">
+            <span><b>熔断已触发</b>：连续 5 轮全部房间检测失败，轮询已暂停以保护账号。最近错误：会话被服务端作废（401）。</span>
+            <div class="acts"><button class="btn btn-ghost btn-sm">去登录</button><button class="btn btn-ghost btn-sm">手动重试</button></div>
+          </div>
+          <div class="group" style="margin-top:14px">
+            <div class="bar"><h4><span class="cdot off"></span>在播关注 <span class="n">0</span></h4></div>
+            <div style="text-align:center;padding:22px 0;color:var(--ink3);font-size:11.5px">
+              <div style="font-size:12.5px;color:var(--ink2);font-weight:600">暂时没有主播在直播</div>
+              <div style="margin-top:5px">上次成功检测 11:32:04 · 已暂停中，此处数据可能不是最新</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="frame">
+        <div class="app">
+          <div class="wordmark"><div class="w1">SODALive</div></div>
+          <div class="platseg"><button class="on p"><span class="cdot p"></span>Panda</button><button><span class="cdot s"></span>SOOP</button></div>
+          <div class="navtab on">直播</div><div class="navtab">录制</div>
+          <div class="searchbox"><input value="lck" /></div>
+          <span class="state-pill cool"><i></i>风控冷却</span><div class="av p">P</div>
+        </div>
+        <div class="body">
+          <div class="banner warn" style="font-size:11px">
+            <span><b>Panda 风控冷却中</b>：请求节流已自动加倍，预计 04:12 后恢复。SOOP 检测不受影响，仍按 30s 推进。</span>
+          </div>
+          <div class="group" style="margin-top:14px">
+            <div class="bar"><h4><span class="cdot"></span>「lck」的搜索结果 <span class="n">2</span></h4><div class="tools"><span class="chip on">仅 Panda 工作区</span><span class="chip">在 SOOP 中再搜</span></div></div>
+            <div class="ogrid" style="grid-template-columns:1fr">
+              <div class="orow"><div class="ava"></div><div class="m"><div class="n1">lck_kr</div><div class="n2">英雄联盟 LCK 解说转播 · @lck_kr</div></div><div class="acts"><button class="btn btn-primary btn-sm">进入</button></div></div>
+              <div class="orow"><div class="ava"></div><div class="m"><div class="n1">lck_daily</div><div class="n2">离线 · 上次开播 9 月 26 日 · 3 天未播</div></div><div class="acts"><button class="btn btn-ghost btn-sm">房间页</button></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec"><h2>7.2 空态 / 异常态归因表</h2><span class="d">每一格给出「文案要点 + 主行动」；文案落 i18n，不许写死在组件里</span></div>
+    <table class="spec">
+      <thead><tr><th style="width:196px">场景</th><th>文案要点</th><th style="width:210px">主行动</th></tr></thead>
+      <tbody>
+        <tr><th class="k">SOOP 未登录</th><td>「匿名会话只能看公开房间；19+ 与限区房间取不到播放页」—— 说明能做什么、不能做什么，不写「未登录」了事</td><td>去登录（→ 账号页）</td></tr>
+        <tr><th class="k">Panda 未登录</th><td>「未登录时大厅不可用，19+ 房间不显示」</td><td>去登录</td></tr>
+        <tr><th class="k">风控冷却</th><td>「请求节流已自动加倍，预计 HH:MM 恢复」；<strong>必须点名是哪个平台</strong>（现状合并状态会误报）</td><td>无（只读倒计时）</td></tr>
+        <tr><th class="k">熔断 / 已暂停</th><td>「连续 N 轮全部失败，轮询已暂停」+ 最近错误摘要</td><td>去登录 / 手动重试</td></tr>
+        <tr><th class="k">整轮部分失败（SOOP）</th><td>「本轮 N 个房间未读到状态，卡片保留上次读数」<br/><span class="d">落地订正：主进程新增 <code class="tok">PlatformStatus.roundFailed</code>，只数<strong>回落到逐房探针且抛错</strong>的房间（列表整表覆盖时恒 0），连续全灭两轮才升格为 <code class="tok">soopDown</code>。「其中 M 个提示需登录」<strong>一期不做</strong> —— 播放页探针的失败面没有登录信号（<code class="tok">needLogin</code> 只存在于取源回包），硬编一个 M 就是猜；「查看失败清单」需主进程存失败房间数组，压到二期。</span><br/><span class="d">2026-10-02 订正：这一格的口径随每轮预算改口 —— <code class="tok">roundFailed</code> 现在等于「实际发出且失败的探针数 + 本轮被预算挡下、因而没读到状态的房数」（<code class="tok">watcher.ts:739</code>，D54f）。"未读到状态"本来就是这句话的意思，加了上限以后少报反而是不诚实的；列表整表覆盖时它仍恒 0，这句话的可读性不变。</span></td><td>—（一期只读）</td></tr>
+        <tr><th class="k">站内发现段为空</th><td>~~Panda 逐个模式：「当前为逐个检测，发现段无数据源」；~~SOOP 一期：整段换成引导卡<br/><span class="d">2026-10-02 订正：Panda 那一半连同出口一起删净 —— 大厅不再搭轮询的车以后，空只有三种原因，归因跟着换成 <code class="tok">emptyDiscoverLogin</code>（未登录：Panda 大厅不可用）与 <code class="tok">emptyDiscovery</code>（这一屏还没拉到过全站榜），第三种是搜索词无命中（<code class="tok">emptyKw</code>，与墙同一判据、同一出口）</span></td><td>~~切回列表模式~~ / 同步关注 / 这一屏的手动刷新<br/><span class="d">出口随之改口：「切回列表模式」不再能解释大厅的空，也就不能当出口；发现页的「立即刷新」改打 <code class="tok">discoveryRefresh(true)</code>（D53a）</span></td></tr>
+        <tr><th class="k">首用空墙</th><td>「还没有关注任何主播」+ 两条入口并列</td><td>+ 添加房间 / 去发现（SOOP 无后者则只留一条）</td></tr>
+        <tr><th class="k">筛选后为空</th><td>必须区分三种：关键词无命中 / 平台筛到无内容 / 全量确实为空<br/><span class="d">落地订正（2026-09-30 实机，原判定「现状已做对」是错的）：工作区三个视图的筛选条此前按<strong>筛完还剩几条</strong>决定出现（<code class="tok">v-if="activeList.length"</code>），于是把列表筛空的那枚 chip 连同自己一起藏掉了 —— Panda 站内发现 385 条、本机关注 0，点「只看已关注」后 chip 从 DOM 消失、空墙写着与筛子无关的「站内暂时没有可展示的在播房间」，<strong>用户被锁在没有出口的空白页里，只能靠换视图绕开</strong>。三条改法：① 出现条件改看<strong>基数</strong>（<code class="tok">liveList / discovery / offBase</code>）<strong>或有筛子开着</strong>，与录制页的库 <code class="tok">totalCount</code> 同一口径（D14e）；② 空态归因把「是筛空的」排在其它解释<strong>之前</strong>，句子点名筛子与基数：「{label}筛完是 0 条 · 这一栏本来有 {n} 条」；③ 这种墙只给一条主行动「取消筛选」，不再并列「去登录 / 加房间」（它们不是这个现场缺的东西）。由 D29a~g 锁死，三视图 × 中英四实现场实机复验。<strong>同轮二次订正</strong>：① 的「基数」三视图起初各用一套 —— <code class="tok">liveList</code> 与 <code class="tok">offBase</code> 已经过搜索词，发现段却用了未过词的 <code class="tok">store.discovery.length</code>，于是「词无命中 + chip 开着」被报成 chip 的锅，而「取消筛选」按下去仍旧空墙（同一类无出口现场换了条触发路径）；现统一为<strong>「搜索词已生效 · chip 未生效」</strong>（D29d/D29h）。另一处实机抓到：发现段的墙写「没有匹配 X」而手里<strong>一个按钮都没有</strong> —— 顶栏搜索框没有 ✕，用户得自己去顶栏找回那个词；根因是文案与出口分两处判断，现由同一条 <code class="tok">emptyAction</code> 与 <code class="tok">listEmpty</code> 同判据同顺序决定（D30a~d：有词无命中必给「清除搜索」，词排在「缺前提」之前，不再跳登录）。</span></td><td>取消筛选（一键把本视图开着的筛子全拿掉）· 清除搜索（词无命中时）</td></tr>
+        <tr><th class="k">跨平台搜索</th><td>顶栏搜索只搜当前工作区；结果区末尾补一行「SOOP 另有 3 个匹配」</td><td>一键跳到对方工作区带词搜索</td></tr>
+        <tr><th class="k">导入进行中</th><td>「正在读取站内关注…」，按钮转 loading 且禁用重复点击</td><td>—</td></tr>
+        <tr><th class="k">导入完成</th><td>差值回执：「新增 8 · 已存在 34 · 站内共 42」—— 只说「已导入」用户无法判断有没有漏</td><td>—</td></tr>
+        <tr><th class="k">同步发现站内已取关</th><td>离线行标注「站内已取关 · 本地仍保留」，<strong>不自动删用户的墙</strong></td><td>批量清理（可选，二期）</td></tr>
+        <tr><th class="k">needLogin 进播放页</th><td>整屏拦截：说明 + 去登录，不给空播放器</td><td>去登录</td></tr>
+        <tr><th class="k">磁盘低于阈值</th><td>页头常驻「磁盘告急，已开始拒绝新录制」，录制页任务行同步标红<br/><span class="d">落地订正：告警枚 + 「打开保存目录」并列在<strong>录制页页头</strong>（标题下方），低于阈值即出现、恢复即收起；原先这句只在任务行脚注里，<strong>没有任务在录时那一行根本不存在</strong>。S4 顶栏草图里的「磁盘可用」胶囊未做常驻：顶栏是平台/轮询状态的扫描轴，磁盘是可恢复的局部条件，两处都常驻会稀释顶栏；数字留在页头概览条第三格（低于两倍阈值时转 warnink）。</span></td><td>打开保存目录</td></tr>
+      </tbody>
+    </table>
+
+    <div class="sec"><h2>7.3 深色主题的两条专门约束</h2><span class="d">现状深色只做了反色，卡片边界与状态色在深色下会糊</span></div>
+    <table class="spec">
+      <tbody>
+        <tr><th class="k">边界靠描边不靠阴影</th><td>深色下 <code class="tok">--sh1</code> 改为 <code class="tok">0 0 0 1px #2C3138</code>（即一级「阴影」实质是描边），二级阴影保留但不承载边界语义。</td></tr>
+        <tr><th class="k">主色与状态色要提亮</th><td>深色主色 <code class="tok">#7FA6E0</code> + 按钮文字 <code class="tok">#0E1116</code>（深字浅底，对比 12.7:1）；徽标底改 <code class="tok">#C4333A</code> 阶；平台色 SOOP 黄在深色下可直接做文字（<code class="tok">#FFDF4A</code> on <code class="tok">#1D2024</code> ≈ 9.9:1），Panda 粉仍只做色点。</td></tr>
+      </tbody>
+    </table>
+    <div class="note" style="margin-top:12px"><b>切到本稿右上角「◐ 深色」即可整稿预览深色效果</b>：令牌板里的浅色比值不随主题重算，深色比值单独在 7.3 标注 —— 落地时需要在两种主题下各跑一次对比度脚本，不能只测浅色。</div>
+  </div>
+</section>
+<!-- ============================ S9 账号 / 登录 ============================ -->
+<section class="screen" id="s9">
+  <div class="app">
+    <div class="wordmark"><div class="w1">SODALive</div><div class="w2">MONITOR</div></div>
+    <div class="sepv"></div>
+    <div class="platseg">
+      <button><span class="cdot p"></span>Panda<span class="badge" style="background:#C46A88">12</span></button>
+      <button><span class="cdot s"></span>SOOP<span class="badge">5</span></button>
+    </div>
+    <div class="navtab">直播</div>
+    <div class="navtab">录制</div>
+    <div class="searchbox">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input placeholder="搜索" disabled style="opacity:.6" />
+    </div>
+    <div class="av" style="background:linear-gradient(135deg,#2F4B7C,#5E7DB8);box-shadow:0 0 0 2px rgba(47,75,124,.35)">账</div>
+    <div class="wctl"><span>–</span><span>□</span><span>×</span></div>
+  </div>
+  <div class="body">
+    <div class="ph">
+      <div>
+        <h3>账号 <span class="chip" style="height:22px;font-size:11px;padding:0 9px;vertical-align:2px"><span class="cdot p"></span>Panda</span></h3>
+        <div class="sub">两套会话彼此独立，一次只看一方 <span class="d">落地订正（2026-09-30 三次）：原来这句尾巴上还挂着一句「Cookie 与托管账密经系统安全存储加密，仅存本机」，与「🔒 加密存储」徽章、SOOP 方式 C 脚注、页底数据目录说明是同一个承诺的四次复读 —— 现全页只在页底说一次，加密不可用时由页顶降级横幅当场更正。</span></div>
+      </div>
+      <div class="right">
+        <div class="platseg" style="opacity:.45;text-decoration:line-through">
+          <button class="on p"><span class="cdot p" style="background:#2FAD5F"></span>Panda</button>
+          <button><span class="cdot s" style="background:#E0A526"></span>SOOP</button>
+        </div>
+      </div>
+    </div>
+    <div class="note gray" style="margin-top:10px"><b>页头这套分段已划掉</b>：顶栏本来就有一条全局平台分段，而它在账号页会把人踢回直播页（<code class="tok">switchPlat</code> 的 keep 名单里没有 account），页面只好自备第二套 —— 同屏两套同功能分段就是这么来的。现在顶栏分段在账号页原地改 <code class="tok">?plat=</code>，页内分段与它的「色点 + 已登录 / 未认证 / 未登录」状态标签一并撤掉，页头只留一枚平台牌（色点 + 平台名）说明下面讲的是哪一方。</div>
+
+    <div class="h3" style="margin-top:18px"><span class="num">9.1</span> 状态横幅 · 三种会话状态各自的写法</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;align-items:start">
+      <div>
+        <div class="cap"><span class="tagnew">状态 1</span> 已登录 + 成人认证</div>
+        <div class="acc-hero" style="flex-direction:column;align-items:flex-start;gap:9px">
+          <div style="display:flex;align-items:center;gap:12px;width:100%">
+            <div class="tile ok">👤</div>
+            <div style="min-width:0">
+              <div class="st"><span class="dot" style="background:#2FAD5F"></span>已登录 <span style="font-size:12px;color:var(--ink3);font-weight:600">uid 2048173</span></div>
+              <div class="ds">账号权限完整，含成人认证，全部内容可用</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:7px;width:100%">
+            <span class="chip on" style="height:22px;font-size:10.5px;padding:0 8px;background:rgba(47,173,95,.13);border-color:rgba(47,173,95,.4);color:var(--ok-ink)">成人认证 ✓</span>
+            <span class="chip" style="height:22px;font-size:10.5px;padding:0 8px;text-decoration:line-through;opacity:.5">🔒 加密存储</span>
+            <button class="btn btn-danger-ghost btn-sm" style="margin-left:auto;height:24px;font-size:11px;padding:0 9px">退出登录</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="cap"><span class="tagold">状态 2</span> 会话未认证（最容易被误读的一态）</div>
+        <div class="acc-hero" style="flex-direction:column;align-items:flex-start;gap:9px;border-color:rgba(224,165,38,.5)">
+          <div style="display:flex;align-items:center;gap:12px;width:100%">
+            <div class="tile warn">⚠</div>
+            <div style="min-width:0">
+              <div class="st"><span class="dot" style="background:#E0A526"></span>会话未认证</div>
+              <div class="ds">本地存有 Cookie，但未通过官方校验（已过期或被服务端作废）。<b>现在取流会失败</b>，请重新登录。</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:7px;width:100%">
+            <span class="chip" style="height:22px;font-size:10.5px;padding:0 8px">上次校验 09-28 21:04</span>
+            <button class="btn btn-primary btn-sm" style="margin-left:auto;height:24px;font-size:11px;padding:0 9px">立即重新校验</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="cap"><span class="tagold">状态 3</span> 未登录</div>
+        <div class="acc-hero" style="flex-direction:column;align-items:flex-start;gap:9px">
+          <div style="display:flex;align-items:center;gap:12px;width:100%">
+            <div class="tile none">—</div>
+            <div style="min-width:0">
+              <div class="st"><span class="dot" style="background:var(--ink-deco)"></span>未登录</div>
+              <div class="ds">登录后解锁 19+ / 粉丝团等权限内容；大厅会显示 19+ 房间</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:7px;width:100%">
+            <span class="chip" style="height:22px;font-size:10.5px;padding:0 8px">匿名可看的房间不受影响</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note gray" style="margin-top:12px">
+      <b>这一态的现状问题</b>：分段按钮上的状态点只有颜色（绿 / 琥珀 / 灰），<code class="tok">account.stWarn</code> 的正文又只在切到那一方时可见 —— 于是「琥珀」被读成「已登录」。
+      本稿给它的修法是<strong>颜色 + 文字双通道</strong>：分段按钮右侧从纯色点改成 <code class="tok">色点 + 「已登录 / 未认证 / 未登录」</code> 短标签（原则 R3 的又一次落地）。<span class="d">落地订正（2026-09-30 三次）：双通道这条判据不变，但它的落点变了 —— 页内分段已撤，状态文字改由顶栏胶囊与本页大状态卡的标题承担，<code class="tok">account.segOk / segWarn / segNone</code> 三键随之删除。三块横幅同时并成一块：状态标题 / 身份 / 结论一行读完，「立即重新校验 + 退出登录 + 上次校验时刻」收进右列竖排，不再单独铺第二行（上一版那一行在 <code class="tok">mode === 'none'</code> 时整行消失，同一张卡在两平台之间换了形状）。「上次校验」从徽章降成 11px 正文 —— 它是一个时刻，不是一枚需要抢注意力的状态。</span>
+    </div>
+
+    <div class="h3" style="margin-top:22px"><span class="num">9.2</span> 登录方式（三种，失败即往下换一种）</div>
+    <div class="note gray" style="margin-bottom:12px"><b>三张卡已并成一张卡三行</b>：下面这三块各自带图标 + 标题 + 徽章 + 说明 + 脚注，纵向叠起来实测要滚两屏才看完「登录方式」，第一次登录的人真正要的只有第一块里那枚按钮。现 <strong>网页登录</strong> 一行直给（唯一一枚 primary 按钮），<strong>Cookie 导入</strong> 与 <strong>账密自动重登</strong> 收成一行、点开才出步骤与输入框。<br/>
+      同轮撤掉四类噪声：① <code class="tok">推荐</code>（品牌色）与 <code class="tok">最稳定</code>（绿）两枚徽章在同一屏互相拆台，且绿色那一枚借用了「成功态」的颜色 —— 推荐与否改由按钮档位表达，全页只剩一枚 primary；② 方式 A 的三条 ✓ 卖点（「支持验证码 / 二次验证」「成功后自动捕获 Cookie 关窗」「事件驱动，零轮询」）压着两屏高却不给操作信息，前两条并进一行说明，第三条是实现细节直接删；③ 方式 B 的第 4 步「粘贴到右侧，点击「导入并验证」」与按钮标签逐字重复，四步收成两步（F12 与 document.cookie 两步本就一次做完）；④ <code class="tok">已托管 1004***</code> 从徽章改成行右侧文字 —— 折叠状态下也必须看得见托管与否。SOOP 校验走 <code class="tok">get_private_info.php</code>、只认 <code class="tok">LOGIN_ID</code> 这条判据从界面撤下（它是排障依据不是操作指引，见 8.2 D）。<br/>
+      <strong>换平台时收起两个面板并清空粘贴串</strong>：Cookie 串是按平台导入的，留着 A 平台的串配 B 平台的按钮只隔一次误点。<br/>
+      <strong>另：㉜ 的 CTA 定宽在账号页改成下限</strong>（<code class="tok">!w-[112px]</code> → <code class="tok">!min-w-[112px]</code>）。英文实机渲染抓到「Open login window」被 112px 裁成「Open login wind」—— 中文标签量出来的死宽，换一门语言就变成裁字；下限既保住同列按钮的对齐，也让翻译自己撑开。<strong>这条只有切到英文真机看过才会暴露</strong>，中文渲染下它是绿的。<br/>
+      <strong>同一条判据已推全站（2026-09-30，由 D28 锁死）</strong>：八处按钮定宽全换成下限 —— 设置页吸底条 128×2、录制页动作列 88×4、添加房间对话框 88×2、播放页刷新 72。<span class="d">量法：CDP 压视口到最小窗宽 1024、切英文逐枚比 <code class="tok">.n-button__content.scrollWidth</code> 与盒子可用宽，六屏零裁切。</span>两处不是文案盒的定宽按例外保留（账号页托管账密输入框 180 = 列宽、添加房间弹窗 460 = 对话框宽<span class="d">2026-10-01：该例外随对话框从 <code class="tok">WorkspaceView.vue</code> 拆成 <code class="tok">AddFollowDialog.vue</code> 而跟着搬家，D28b 的命中检查照旧。</span>），例外本身由 D28b 带命中检查 —— 例外不再命中任何行即 FAIL。<strong>竖排动作列的下限要放在列容器上，不是每枚按钮上</strong>：88 放在按钮上会让英文的「Open replay」把那一枚单独撑到 96，同一列两行左边缘错开 8px（实机抓到）；放列上则整列一起到 96，中文仍是齐的 96。</div>
+    <div class="method on">
+      <div class="mh">
+        <div class="mi">🌐</div>
+        <div class="t">网页登录</div>
+        <span class="chip on" style="height:22px;font-size:10.5px;padding:0 8px">推荐</span>
+        <div style="flex:1"></div>
+        <span style="font-size:11px;color:var(--ink3)">在应用内置窗口打开官方登录页，由你亲自完成登录</span>
+      </div>
+      <div class="feat"><span><i></i>支持验证码 / 二次验证</span><span><i></i>成功后自动捕获 Cookie 并关窗</span><span><i></i>事件驱动，零轮询</span></div>
+      <div class="mfoot">
+        <span class="hint">Panda 打开 <code class="tok">www.pandalive.co.kr</code>；SOOP 打开 <code class="tok">www.sooplive.com</code>（实测 play 子域只是跳转页）· 适合需要人机验证的场景</span>
+        <button class="btn btn-primary btn-sm">打开登录窗口</button>
+      </div>
+    </div>
+    <div class="method">
+      <div class="mh">
+        <div class="mi">🍪</div>
+        <div class="t">Cookie 导入登录</div>
+        <span class="chip" style="height:22px;font-size:10.5px;padding:0 8px;background:rgba(47,173,95,.13);border-color:rgba(47,173,95,.4);color:var(--ok-ink)">最稳定</span>
+        <div style="flex:1"></div>
+        <span style="font-size:11px;color:var(--ink3)">防自动登录拦截时的终极方案，一次导入长期有效</span>
+      </div>
+      <div class="cookie-grid">
+        <ol class="steps">
+          <li><span class="no3">1</span><span>日常浏览器（Chrome/Edge）打开 <b style="color:var(--brand)">pandalive.co.kr</b> 并完成登录</span></li>
+          <li><span class="no3">2</span><span>按 <code class="tok">F12</code> 打开开发者工具 → Console 控制台</span></li>
+          <li><span class="no3">3</span><span>输入 <code class="tok">document.cookie</code> 回车，复制整串结果</span></li>
+          <li><span class="no3">4</span><span>粘贴到右侧，点击「导入并验证」<br/><span style="color:var(--ink3);font-size:11px">SOOP 侧校验走 <code class="tok">get_private_info.php</code>，只认回包里的 LOGIN_ID</span></span></li>
+        </ol>
+        <div>
+          <div class="ta">sessKey=xxxx; 79b0c6d4…=xxxx; partner=pandatv; …</div>
+          <div class="mfoot" style="margin-top:9px">
+            <span class="hint">验证通过才落罐，失败不影响现有会话 · 粘贴的 Cookie 不会写进日志</span>
+            <button class="btn btn-primary btn-sm">导入并验证</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="method">
+      <div class="mh">
+        <div class="mi">🔑</div>
+        <div class="t">账密自动重登 <span style="font-size:11px;font-weight:600;color:var(--soop-ink);background:var(--fill);border:1px solid var(--line);border-radius:5px;padding:2px 6px;margin-left:4px">仅 SOOP</span></div>
+        <span class="chip" style="height:22px;font-size:10.5px;padding:0 8px;background:rgba(47,173,95,.13);border-color:rgba(47,173,95,.4);color:var(--ok-ink)">已托管 1004***</span>
+      </div>
+      <div class="ms">存下账号密码：取流遇到会话过期（错误码 -6）时后台自动重登一次，无需手动干预。Panda 侧刻意<strong>不提供</strong>这条，只留网页登录与 Cookie 导入 —— 两平台风控特征不同，不是遗漏。</div>
+      <div class="mfoot">
+        <span class="inp" style="width:170px">1004ysus</span>
+        <span class="inp pw" style="flex:1">••••••••••</span>
+        <button class="btn btn-ghost btn-sm">保存并登录</button>
+        <button class="btn btn-danger-ghost btn-sm">解除托管</button>
+      </div>
+      <div class="ms" style="font-size:11px;color:var(--ink3);margin-top:9px">凭据经系统安全存储加密（DPAPI / Keychain / libsecret），仅存本机；日志中账号脱敏，密码不回显也不回传。</div>
+    </div>
+
+    <div class="h3" style="margin-top:22px"><span class="num">9.3</span> 过程态与降级态</div>
+    <div class="cmp">
+      <div>
+        <div class="cap">进行中 / 成功 / 被拦</div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div class="banner info"><span><b>登录窗口已打开</b> · 等待你在官方页面完成登录（事件驱动，本页不轮询）</span><span class="ro" style="height:24px;font-size:11px">已等待 00:42</span></div>
+          <div class="banner" style="background:rgba(47,173,95,.08);border:1px solid rgba(47,173,95,.35);color:var(--ok-ink)"><span><b>会话已建立</b> · 官方校验通过，Cookie 已加密写入本机 · 成人认证 ✓</span></div>
+          <div class="banner warn"><span><b>官方校验请求失败</b>（网络 / 风控）· 暂无法确认登录态。现有 Cookie 未被清除，可稍后重试或换一种方式</span><div class="acts"><button class="btn btn-ghost btn-sm">重试</button><button class="btn btn-ghost btn-sm">改用 Cookie 导入</button></div></div>
+          <div class="banner err"><span><b>本机系统密钥不可用</b>（DPAPI / Keychain / libsecret）· 托管账密与 bot token 目前以可逆编码明文存于 <code class="tok">data/secrets.dat</code>，同登录用户的其它程序可还原。<b>修复钥匙环后重新保存一次即转加密。</b></span><div class="acts"><button class="btn btn-ghost btn-sm">查看当前存储形态</button></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="cap">页脚与权限图例</div>
+        <div class="setgroup">
+          <div class="sethead"><div class="t">数据落点</div><div class="s">不写系统盘，随程序目录整体迁移</div></div>
+          <div class="srow"><div class="lab"><div class="l">应用数据目录</div><div class="s" style="font-size:11px;color:var(--ink3)">设置 / 关注 / 录制历史 / 加密 Cookie</div></div><div class="after"><span class="ro mono" style="max-width:260px;overflow:hidden;text-overflow:ellipsis">D:\11\pd-monitor\data</span><button class="btn btn-ghost btn-sm">打开目录</button></div></div>
+          <div class="srow"><div class="lab"><div class="l">房间权限标签图例</div><div class="s" style="font-size:11px;color:var(--ink3)">登录后可解锁的三类内容，卡片与播放页用同一套词<span class="d">（19+ 这一枚自此只可能由 Panda 点亮；SOOP 侧只剩密码房 —— 它决定弹不弹密码框，是功能不是装饰）</span></div></div><div class="after"><span class="b-19" style="position:static">19+</span><span class="chip" style="height:22px;font-size:10.5px;padding:0 8px">密码房</span><span class="chip" style="height:22px;font-size:10.5px;padding:0 8px">粉丝团</span><span class="chip" style="height:22px;font-size:10.5px;padding:0 8px">地区限制</span></div></div>
+          <div class="srow"><div class="lab"><div class="l">退出登录</div><div class="s" style="font-size:11px;color:var(--ink3)">Panda：删除本地 Cookie · SOOP：删除 Cookie <b>并解除账密托管</b>，两个动作在同一句确认文案里说清</div></div><div class="after"><button class="btn btn-danger-ghost btn-sm">退出登录…</button></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="sec"><h2>9.4 账号页只改 5 处，结构不动</h2><span class="d">这一页已经天然是「平台分段」形态，是全站里唯一不需要改 IA 的页</span></div>
+    <table class="spec">
+      <thead><tr><th style="width:34px">#</th><th style="width:210px">改动</th><th>为什么</th></tr></thead>
+      <tbody>
+        <tr><td class="c">1</td><td>全套令牌替换（卡片 14 圆角 + 描边、按钮 brand 底、墨绿/琥珀/灰三色阶）</td><td>现状 hero 与方式卡用的是 <code class="tok">shadow-card</code> 无描边，深色主题下边界会消失（<code class="tok">AccountView.vue:197,231,260,305</code>）</td></tr>
+        <tr><td class="c">2</td><td>平台分段的色点补成「色点 + 状态文字」</td><td>绿 / 琥珀 / 灰 三态纯色点已被读错（<code class="tok">AccountView.vue:87-92</code> 的注释本身就在解释颜色含义，说明颜色不够用）</td></tr>
+        <tr><td class="c">3</td><td>状态 2 补「上次校验时间」与「立即重新校验」</td><td>现状 <code class="tok">stWarn</code> 只说「之前的登录未通过官方校验」，用户分不清是过期、被作废还是网络失败</td></tr>
+        <tr><td class="c">4</td><td>密钥不可用的降级告警从方式卡底部提到页面顶部 banner</td><td><code class="tok">account.mDPlainWarn</code> 是安全告知，藏在第三张卡底部等于没告知（现状 <code class="tok">AccountView.vue:329</code>）</td></tr>
+        <tr><td class="c">5</td><td>退出登录确认文案把「SOOP 会连带解除托管」写进同一句</td><td>现状 <code class="tok">logoutConfirmSoop</code> 已有这句，但按钮与文案分处不同滚动位置，确认时容易漏读</td></tr>
+      </tbody>
+    </table>
+    <div class="note gray" style="margin-top:12px">
+      <b>订正（落地时定的五处形态）</b>：<br/>
+      ① 令牌替换落在语义类上，不是硬编码色值：<code class="tok">text-emerald-500 → text-okink</code>、<code class="tok">bg-[#2fad5f]/[0.12] → bg-ok/10</code>、
+      琥珀告警统一 <code class="tok">bg-warn</code>（色点）/ <code class="tok">bg-warnbg + text-warnink</code>（底与字）、灰阶 <code class="tok">bg-[#9499a0]/10 → bg-fill</code>、装饰字形 <code class="tok">text-deco</code>；
+      「推荐」chip 与四步序号圆原本用平台粉，改成 <code class="tok">bg-brand/[0.10]</code> —— 那是强调底不是平台身份，身份色只留给头像。<br/>
+      ② 分段状态由 <code class="tok">PlatFilter</code> 的新 prop <code class="tok">states</code>（<code class="tok">{dot, text}</code>）承载，文案取「已登录 / 未认证 / 未登录」，色点与文字同轴，其它页面的分段复用不带 <code class="tok">states</code> 就不显示状态。<br/>
+      ③ 校验轨单独占 hero 的第二行，不与状态标题挤同一行 —— 窄窗口下按钮会被推出可视区。时间来自新增的 <code class="tok">lastVerifyAt</code>，
+      <strong>命中 30s / 2min 结果缓存时沿用缓存里的时刻</strong>（那才是官方最后一次真实答复的时间），只有真正发出请求才刷新；<code class="tok">auth:recheck</code> 只在用户点击时打，不进轮询。
+      复检结果的 toast 对 <code class="tok">netFail</code> 单独说「请求失败」，不能报成状态，否则用户会把「没打通」读成「官方判死」。<br/>
+      ④ 密钥降级 banner 提到页面标题与 hero 之间，卡片里原来那句 <code class="tok">account.mDPlainWarn</code> 已删 —— 降级态下「凭据经系统安全存储加密」是假话，必须在看到假话之前先看到更正。<br/>
+      ⑤ 退出文案无需改动：现状 <code class="tok">logoutConfirmSoop</code> 已经是「清除 Cookie 并解除账密托管」同一句，popconfirm 就挂在按钮上，不存在滚动分离。
+    </div>
+    <div class="note" style="margin-top:12px">
+      <b>为什么账号页不跟着一级导航拆成「Panda 账号 / SOOP 账号」</b>：会话是账号级而非工作区级，两平台并列在同一页上互相参照（一方已登录、另一方待登录）正是最常见的判断场景；
+      顶栏头像点击带 <code class="tok">?plat=</code> 直接落到对应分段（现状 <code class="tok">AccountView.vue:19,22-27</code> 已实现），一级化反而多一次跳转。
+    </div>
+  </div>
+</section>
+
+<!-- ============================ S8 ============================ -->
+<section class="screen" id="s8">
+  <div class="page">
+    <div class="sec"><h2>8.1 分期：一期纯渲染层，二期才动采集</h2><span class="d">分界线是「不新增任何网络请求」—— 一期完成后界面已经可用且可回滚，二期失败不影响一期</span></div>
+    <table class="spec">
+      <thead><tr><th style="width:96px">期次</th><th>内容</th><th style="width:250px">验收口径</th></tr></thead>
+      <tbody>
+        <tr>
+          <th class="k">一期<br/>壳与轴</th>
+          <td>
+            ① 路由改 <code class="tok">/:plat/live · /:plat/recordings · /:plat/library</code> + 全部旧深链重定向（TG 正文只含站内网页链接，不生成应用深链，故不在改动范围内）；<br/>
+            ② 顶栏改「平台分段 + 三条页面」，平台在播计数上徽标；<br/>
+            ③ 大厅 + 已关注合并为<strong>三视图分段</strong>（在播关注 / 站内发现 / 离线关注，一次只看一视图；原稿在此另挂一条常驻在播坞，落地后撤掉）；每视图独立排序、筛选、分页与滚动位置，选中视图与各视图筛选态沿用现有 store 逻辑（<code class="tok">exploreFilter</code> 那套）；<br/>
+            ④ 令牌全套替换（<code class="tok">styles.css</code> 变量 + <code class="tok">tailwind.config.js</code>），徽标三规则、卡片槽位、控件状态表落地；<br/>
+            ⑤ 播放页命名统一 + SOOP「不适用」区块改为显示；<br/>
+            ⑥ 设置页按三域分节：全局五节（外观/录制/网络/推送与行为/数据与日志）+ <strong>Panda / SOOP 两个平台节</strong> + 关于；平台专属项（检测模式、轮询节奏三格、源保活、开播自录默认、通知矩阵）只出现在平台节，通知矩阵按平台各一张、整块开/关也按平台走（详见 ㉝）；<span class="d">原稿此处是「全局六节（外观/<b>监控</b>/录制/…）」—— 落地时把「监控」那一节拆掉了：轮询节奏三格下沉到两个平台节，节里唯一剩下的全局项「启动默认工作区」并入外观，导航与双语死键同撤。</span><br/><br/>
+            ⑦ 数据面扩展（见 8.2：A/B 是原列的两项，C/D 是本屏 S9 与 D3 落地时补的，都不加轮询）；<br/>
+            ⑧ 账号页按 S9 的 5 处改动落地（当时结构未动：仍是一页两态分段，只换皮、补状态文字、补校验轨、把密钥降级告警提到页顶、退出确认合并）；<span class="d">2026-09-30 三次：这一条的「结构未动」已被 S9 的两处订正取代 —— 两态分段并成顶栏一套、三卡并成一卡三行、校验轨并进状态卡右列，密钥降级告警仍在页顶、退出确认仍合并。</span><br/>
+            ⑨ D3 反向差值上线：同步站内关注只<strong>标注</strong>「站内已取关 · 本地仍保留」，一条都不删，离线视图另给一枚筛子。
+          </td>
+          <td>类型检查 + <code class="tok">npm run verify</code> 十二套脚本全绿（<code class="tok">verify-design</code> · <code class="tok">verify-dataroot</code> · <code class="tok">verify-playcache</code> · <code class="tok">verify-keepalive</code> · <code class="tok">verify-netgate</code> · <code class="tok">verify-p1</code> · <code class="tok">verify-settings</code> · <code class="tok">verify-vodduration</code> · <code class="tok">verify-follows</code> · <code class="tok">verify-imgcache</code> · <code class="tok">verify-deeplink</code> · <code class="tok">verify-notify</code>），另加六道真机口径：<br/>
+              · <strong>迁移面（幂等：搬一次不算过，每一次写入之后都要重验）</strong>：三次冷启动 + 每一次写入之后，盘上三条顶层节奏键恒为 <code class="tok">[]</code>，<code class="tok">monitor</code> 两格原样 —— 补齐不是每次启动再搬一遍。<br/>
+              · <strong>节奏面（把"两套定时器"量成数字）</strong>：SOOP 15s / Panda 60s 同屏 → SOOP 发车 rel 7/23/39/57/73s、Panda 3/69s；换 Panda 40s / SOOP 100s → Panda 周期 47 与 48s、SOOP 周期 102s。<strong>周期 = 间隔 + 本轮耗时</strong>（定时器在轮次的 <code class="tok">finally</code> 里重排，<code class="tok">watcher.ts:171</code>），40s 量出 47s 不是漂移；改档下一轮即生效、不需重启。<strong>只改 Panda 那一格只多出发一轮 Panda</strong>（rel 7），SOOP 仍是 11/27/44/60 —— 保存后的"按平台惊动"（<code class="tok">ipc.ts:644</code>）成立。Panda 熔断的 14/48 帧里 SOOP 完成 5 轮。<br/>
+              · <strong>设置面</strong>：导航与 <code class="tok">[data-sec]</code> 里 <code class="tok">monitor</code> 均 0；只改 SOOP 一格 → 只有 SOOP 亮脏点；「放弃更改」两平台一起回基线；三级钳制实测 9999→600、1→300、<strong>清空提交 30 而不是 <code class="tok">null</code></strong>（表单 <code class="tok">clampMonitor</code> 与入站闸门同口径）；点 SOOP 的预取瓷片不翻 Panda；深链 <code class="tok">?sec=panda|soop</code> 各落各节，旧 <code class="tok">?sec=monitor</code> 回落外观不报错。<br/>
+              · <strong>读数面</strong>：顶栏胶囊 SOOP <code class="tok">15s · 1.5 秒</code>，Panda 冷却时 tooltip 仍写「风控冷却中, 43s 后恢复 · 每 45 秒…」；<strong>冷启动首帧实拍</strong> SOOP「检测间隔 60s」/ Panda「检测间隔 33s」（33 = 当时那一格的值，首轮落地后各自改口「上轮拉取 HH:MM:SS」）—— 分段那一档的 <code class="tok">else</code> 分支自此才有实拍；播放页脚注「每 45 秒」/「每 15 秒」按平台；启动日志两行按平台各一条；TG 通知全文不引用节奏（<code class="tok">notify.ts</code> 零命中，静态）。<br/>
+              · <strong>无回归</strong>：录制 ×2 / 账号 / 播放 ×2 无 <code class="tok">undefined|NaN|[object</code>；1024 窗宽 <code class="tok">scrollWidth == clientWidth == 1024</code> 无横向溢出；深浅两主题 × 两平台节各出截图。<br/>
+              · <strong>库差分</strong>：<code class="tok">settings</code> 与开工前备份<strong>深相等</strong>（探针起的节奏改动一格不剩）、anchors 876 → 876 增删 <strong>0</strong>、63 位的变化面只有轮询元数据（<code class="tok">lastSeenAt 61 / viewerCount 60 / thumbUrl 60 / title 46 / startTime 45 / isLive 42 / tags 42 / lastLiveAt 32 / likes 1 / fans 1</code>）、SOOP 的 <code class="tok">tags.isAdult=true</code> 计数 <strong>0 → 0</strong>（那一格的补齐没被绕过）、<code class="tok">recording/</code> 0 文件。</td>
+        </tr>
+        <tr>
+          <th class="k">二期<br/>采集补强</th>
+          <td>
+            ① SOOP 站内发现（<strong>前置条件是先用只读探针确认存在可用的公开接口</strong>，否则这段永远是引导卡）；<br/>
+            ② 「同步站内关注」的反向差值（站内已取关标注）—— <strong>已提前在二期开工前落地，见 8.2 C</strong>；批量清理仍在二期；<br/>
+            ③ 批量操作（多选关注 → 批量开关自动录制 / 批量取关）；<br/>
+            ④ 录制页跨平台总览卡（总时长 / 总占用 / 按平台分解）；<br/>
+            ⑤ SOOP 整轮失败的「查看失败清单」与「其中 M 个提示需登录」归因（见 7.2 订正：一期只给失败房间数，清单要主进程存数组，需登录信号目前不在探针回包里）。
+          </td>
+          <td>二期每项独立可回滚；SOOP 发现段若官方无稳定接口则不做，引导卡保留即为最终态 —— <strong>不接受用逐房轮询冒充「发现」</strong>，那会把风控成本转嫁给账号。</td>
+        </tr>
+        <tr>
+          <th class="k">不在分期</th>
+          <td>appId / 包名重命名；macOS/Linux 的 <code class="tok">userData</code> 路径迁移（<code class="tok">productName</code> 已改，这一步是独立决策）。<br/><b>订正：</b>S9 那 5 处原列在「等你看屏确认后再定」，你确认方案 A 后一并纳入一期，现已落地；账号页<strong>结构</strong>仍未动（没拆成两页、没加新板块）。</td>
+          <td>—</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="note gray" style="margin-top:12px">
+      <b>订正（一期收口时补的十一处，全部落在验收口径 ①~⑨ 之内）</b>：<br/>
+      ① <strong>选中态一律 brand，红色退出「选中」语义</strong>。视频库四枚选中胶囊原本用 <code class="tok">bg-live/10 text-liveink</code>，与工作区（brand）打架 —— <code class="tok">live</code> 从此只表示「正在发生坏事或在播」，选中/焦点/进度归 brand。<br/>
+      ② <strong>VOD 橙整族作废</strong>（回放徽标、进度条、渐变底）。它从没进过令牌板，本稿 S4/S7 的回放徽标画的也是 <code class="tok">var(--brand)</code>；两色并存时用户分不清哪个是"平台色"。<br/>
+      ③ 徽标承载面按 R1 收敛为两种，并顺手修掉两处对比度不达标：<code class="tok">录制中/错误 = bg-liveink</code>（白字压 <code class="tok">#e5484d</code> 只有 3.91:1，压 <code class="tok">#e0a526</code> 只有 2.2:1）、<code class="tok">转封装中 = bg-warnink</code>、图上的中性枚 = <code class="tok">--tag-onimg</code> 墨底。卡片左上徽标封顶 2 枚（录制中 &gt; 直播中 &gt; 离线，第 3 枚降级右下）。<br/>
+      ④ <strong>控件状态表此前只落地了一半</strong>：全仓没有一条 <code class="tok">focus-visible</code> 规则，键盘操作看不见焦点。<code class="tok">styles.css</code> 补零特异度全局外环（<code class="tok">:where(a,button,input,select,textarea,summary,[tabindex])</code>，naive-ui 开关除外——它自绘轨道方框），外加统一的 <code class="tok">disabled: not-allowed</code>。禁用态的"brand 30% 底 / ink3 字"沿用 naive-ui 的降透明实现，没有另写一套。<br/>
+      ⑤ 卡片墙动效预算收紧：删掉卡片入场 <code class="tok">animate-pop</code> 与 hover 上浮（轮询每 30s 重排，入场动画＝每半分钟抖一次屏）；保留颜色/阴影 150ms 与缩略图 hover 缩放——后者由鼠标驱动，不由轮询驱动。<br/>
+      ⑥ 统计卡补「其中 Panda 84 · SOOP 44」分解行（4.2②），但<strong>统计口径仍是全局</strong>：加一行占比比逼用户切页面便宜。同步关注的回执补上中间那档「已存在」（新增 / 已存在 / 站内共），用户不必再拿总数自己减一遍才知道有没有漏。<br/>
+      ⑦ 跨平台匹配行从「只在空态出现」改为「有词且对面有命中就常驻」；站内发现的空态按 7.2 拆成三条归因（未登录 / 匿名受限 / 逐个检测无数据源），每条给对应的下一步按钮。<br/>
+      ⑧ 播放页密码房补「密码已提供」回执（5.1）：面板提交成功即消失，不回显一次用户只会以为这房根本没设密码。<br/>
+      ⑨ R2 的「三档锁死」此前只落在 <code class="tok">PlatTag</code> 一个组件上：其它徽标各处手写 <code class="tok">py-[3px]</code> / <code class="tok">py-px</code> / <code class="tok">h-[22px]</code>，同一面墙上长出 19/21/22/24 四种高度。现补 <code class="tok">.badge</code> + <code class="tok">.badge-sm(18)</code> / <code class="tok">.badge-md(21)</code> 两档（高度写死，不再由 padding 堆出），全站 20 余枚徽标收进来；字重同时升到 700（原 <code class="tok">font-semibold</code>=600 不在 R2 的 700–800 区间内）。<br/>
+      ⑩ R1 的「图上墨底」也从形容词变成了令牌：<code class="tok">bg-onimg = var(--tag-onimg)</code>（深主题自动换 0.82 档），替掉 <code class="tok">bg-black/50|55|60</code> 三种手写值。顺带修掉一处漏网的对比度：「已缓存」白字压 <code class="tok">#2fad5f</code> 只有 2.89:1，改压 <code class="tok">okink #1b7f42</code> = 5.05:1。<br/>
+      ⑪ 磁盘告警提到录制页页头（7.2 订正），并给「打开保存目录」；<code class="tok">recOpenFolder</code> 的空串改为落默认录制根（原来 <code class="tok">path.resolve('')</code> 会解到 <code class="tok">process.cwd()</code> 并被白名单拒掉）。影院浮层里「当前文件」的选中底也从 live 红改成 brand（①的漏网处）。<br/>
+      另有两处<strong>没照字面执行</strong>：3.2「SOOP 卡片不出现已缓存徽标」经对照实现证伪（见 3.2 订正）；日期分组行保留平台小徽标 —— 原文「按日期分组不挂」说的是组头，组内两平台的房间混排时摘掉徽标才是真丢信息。
+    </div>
+
+    <div class="note gray" style="margin-top:12px">
+      <b>订正 B（六屏 + 十一组件全量复检补的十处，落在验收口径 ①~⑨ 之内；每条都有 <code class="tok">file:line</code> 与静态断言）</b>：<br/>
+      ⑫ <strong>选中态残留红色</strong>（①的漏网处）：设置页主题瓷片的选中圈是 <code class="tok">bg-live</code> + 白勾（3.91:1 且红＝选中），现为 <code class="tok">bg-brand/[0.14]</code> + <code class="tok">text-brand</code> 勾（浅 8.68:1 / 深主题 brand 升到 <code class="tok">#7FA6E0</code> 仍达标，纯色底白勾在深主题会掉到 2.45:1，所以用淡底而不是实底）；顶栏「新开播」计数徽标 <code class="tok">bg-live</code> → <code class="tok">bg-live-ink</code>（6.52 / 5.40:1），呼吸动画保留。<br/>
+      ⑬ <strong>状态色承载面全量归位</strong>：渲染层 <code class="tok">bg-live|ok|warn</code> 无 alpha 的落点逐个核对后只剩色点、进度条与仅图标按钮 16 行，全部由 D5 的 10 条白名单覆盖；<code class="tok">text-live|ok|warn</code> 承载文字的地方清零，仅剩两枚心形图标（D6）。<br/>
+      ⑭ <strong>影院浮层与播放器遮罩脱离子令牌</strong>：原用 Tailwind 原生 <code class="tok">red-200/300/400/500</code>、<code class="tok">gray-400/900</code>、<code class="tok">#e8eaf0</code>。恒黑媒体面上白字压 <code class="tok">#e5484d</code> 只有 3.91:1，故新增暗场专用亮红 <code class="tok">--c-err-dark = #ff9a9a</code>（黑底 9.6:1）→ 令牌 <code class="tok">errdark</code>；遮罩底改 <code class="tok">bg-black/95</code>、次要文字改 <code class="tok">text-white/65|90</code>（白-alpha 是"恒深底"面的合法承载面，等价于 R1 的墨底档）。渲染层原生调色板现由 D3 静态清零。<br/>
+      ⑮ <strong>设置页可点瓷片无行为</strong>：九块 switch 瓷片带 <code class="tok">cursor-pointer</code> + hover（<code class="tok">tileCls</code>），但没挂 <code class="tok">@click</code> —— 看着能点、点了没反应。现补 <code class="tok">tileClick($event, key)</code>，且命中 <code class="tok">.n-switch</code> 时直接 return（否则一次点击翻两下）。D12 断言瓷片数 == 绑定数。<br/>
+      ⑯ <strong>R2 档位补齐</strong>：见 R2 行的落地订正（lg 取消 + 录制任务行 md→sm，与 S4 mock 的 <code class="tok">pt sm</code> 对齐）。<br/>
+      ⑰ <strong>图上承载面令牌纯度</strong>：在播坞 chip 原为 <code class="tok">bg-page</code>（卡面色）叠在卡面上，改 <code class="tok">bg-fill</code>；chip 内首字头像回落 <code class="tok">bg-card</code>（否则与 chip 底同色隐形）；锁定图标 <code class="tok">text-sky-500</code> → <code class="tok">text-ink2</code>；死类名 <code class="tok">dchip</code>（全仓无对应样式）删除。<br/>
+      ⑱ <strong>通知平台前缀</strong>（4.2①的延伸）：同名主播在两平台同时开播时，应用内气泡与系统通知标题原本只有「张三 开播了」，分不清是哪个平台（TG 卡片头早就带 <code class="tok">PLAT_LABEL</code>，反而是最本地化的那两条路径丢了信息）。现 <code class="tok">sendToast</code> 给标题补 <code class="tok">「Panda · / SOOP · 」</code>，标题自带平台词时不重复挂前缀；由 <code class="tok">verify-notify.mjs</code> B9 四断言覆盖。<br/>
+      ⑲ <strong>播放页「取到源」改相对读数</strong>：绝对时间戳在保活上下文里要用户自己心算年龄，改为 <code class="tok">18:32:04 · 27 秒前</code>，复用已有的 5s 保活 tick 驱动，不新增计时器（动效/定时器预算 ⑤ 的延伸）。<br/>
+      ⑳ <strong>死令牌清理</strong>：卡片入场动画已删（⑤），但 <code class="tok">tailwind.config.js</code> 仍留着 <code class="tok">pop</code> 关键帧与 <code class="tok">animate.pop</code>；<code class="tok">ws.soonHint</code> 在中文里已无引用而英文残留 —— 现由 D11b（pop 不得存在）与 D9a/b（中英键集合必须相等）双向堵住。<br/>
+      ㉑ <strong>工作区分段栏不再挂「未开放」提示</strong>：SOOP 发现分段的解释已由该视图内的引导卡承担（D2 已定），分段栏尾部再挂一句「接口确认后填充」是同一件事说两遍，且挤掉快捷键提示。<br/>
+      ㉒ <strong>「视频库」不再是独立页面</strong>（落地时新增的判定，覆盖 0.1 新 IA 表与 4.1 的两页形态）：录完的落地结果与「正在录的」是同一件事的两个时刻，分成两页就会得到两份平台筛选、两套分组、两个统计口径与两处对账入口。现顶栏只剩「直播 / 录制」两条页面，<code class="tok">/:plat/recordings</code> 自上而下为 ①概览条＋监控总览＋快捷入口 ②进行中 ③<strong>库</strong>；库保留全量能力（分组 / 索引条 / 搜索 / 缩略图 / 影院浮层 / 合并 / 平台筛选），地址里的 <code class="tok">:plat</code> 段作为库的初始筛选。旧深链 <code class="tok">#/library</code> 与 <code class="tok">#/:plat/library</code> 一律重定向到录制页，不留在空白页。<br/>
+      ㉓ <strong>「黑色」与「图片承载面令牌」的分界</strong>：影院浮层的 <code class="tok">bg-black/55 · /25 · /80</code> 保留裸黑，不换 <code class="tok">bg-onimg</code> —— 影院是一间黑房，深浅两主题都要黑，换成令牌底会让浅色主题的遮罩发灰、视频两侧看起来脏。<strong>令牌管的是「压在图片上的小承载面」</strong>（海报卡的状态徽标、时长徽标、hover 播放罩 → <code class="tok">--tag-onimg</code>），<strong>不管整屏遮罩</strong>。同理，海报卡的状态徽标底从 <code class="tok">bg-liveink/90</code> 改成深阶纯色：<code class="tok">/90</code> 会把透出来的海报算进对比度，实测的 6.52:1 就不成立了。<br/>
+      ㉔ <strong>首屏就绪不等官方登录校验</strong>（2026-09-30 实机截图审查发现，typecheck / verify / build 全绿而界面是空的）：<code class="tok">store.init()</code> 原本把 <code class="tok">authState()</code> 放进 <code class="tok">await Promise.all</code>，而它是<strong>两串官方接口</strong>（Panda <code class="tok">login_info</code> + SOOP <code class="tok">get_private_info</code>，且两平台串行）；网络被黑洞或风控拖住时，<code class="tok">ready</code> 不翻转，整个 <code class="tok">&lt;main&gt;</code> 只剩一行居中的「加载中…」——实测十几秒，用户读作「软件坏了 / 这一页是空白页」。现首屏门禁只等本地取数（实测就绪 1.0 秒），账号校验照发但不阻塞、结果经 <code class="tok">EV.account</code> 回挂，两平台改并行取。<strong>态未回填前不能写「未登录」</strong>：顶栏胶囊与账号页分段一律落「校验中」一档，账号页大状态卡用独立的 <code class="tok">mode: 'checking'</code> 而不是复用 <code class="tok">'none'</code> —— 复用会把「立即重新校验」那一行一起藏掉，而「退出登录」在校验中是一枚空承诺，故只在 <code class="tok">ok / warn</code> 出现。由 D15a–h 锁死。<br/>
+      ㉕ <strong>空态一律有界，页头动作一律同档</strong>：实机审查里，站内发现的空态是 <code class="tok">h-full</code> 整屏垂直居中，实测占 71% 视口高、中间一行小字 —— 与 ㉔ 的「加载中」空屏在用户眼里是同一种故障，故工作区空墙改成与「库」「进行中」同一份有界虚线卡（<code class="tok">rounded-card + border-dashed + py-16</code>，实测 30% 视口高）。页头动作按钮曾 <code class="tok">medium</code>（直播页三枚）与 <code class="tok">tiny</code>（录制页三枚）并存，而全应用主流是 <code class="tok">small</code>（58 处）：两页页头收敛为 <code class="tok">small</code>，<code class="tok">tiny</code> 只留给设置页行内控件。录制页监控总览行补上与顶栏胶囊同一判据的「本轮失败」（在跑但整轮看不见：顶栏报失败、页头仍亮红心跳点＋时间戳＝同一屏两套说法）。由 D15i–l 锁死。<br/>
+      ㉖ <strong>在播坞只在「非在播视图」出现</strong>（订正 L 屏方案 A 与 L.2 的「坞常驻在三个视图之上」；<span class="d">本条已被「坞整体撤掉」取代 —— 坞不再出现在任何视图，这里留的是它当时的判据</span>）：站在「在播关注」视图时，下方整屏卡片墙列的就是同一批「关注且在播」房间，坞在这一屏只是把同一份数据渲染第二遍，还把三层带（坞 / 视图分段 / 排序条）堆成四层。坞要补的是<strong>「切走了就看不见」</strong>，不是「已经看见了再看一遍」，故 <code class="tok">view === 'live'</code> 时整条收起；由此坞右侧的「全部在播 N ›」永远是往别处跳，不再是自我指向，<code class="tok">onLiveView</code> prop 一并删除（避免留下一枚只为隐藏按钮而存在的参数）。<strong>0 位时收起（⑥）与非在播视图才出现（㉖）是两条独立判据</strong>，前者管空态不占位，后者管重复呈现；「开播不自动跳视图、只挂 2px 品牌色竖条」那条承诺不受影响 —— 用户本来就在在播视图时，新房间就在眼前。<span class="d">原由 D15m 锁死；坞撤掉后 D15m 改锁「工作区不引不挂坞」。</span><br/>
+      ㉗ <strong>空态的「下一步」必须是动作，不是地址描述</strong>：㉕ 把空态收进有界卡解决了「坏屏感」，但下一句仍是纯文字（「到「直播」页点 ⏺ 开始录制」「先到「录制设置」里选一个」）—— 用户读到了动作，手边却没有任何可点的东西，而那个动作就在页头另一侧或另一个页面。<strong>录制页「进行中」空框</strong>补一枚 <code class="tok">small secondary</code> 按钮跳本平台直播页，<strong>库空态行</strong>末尾补一枚品牌色文字链：没设保存目录时跳设置，已设则跳直播页；筛选为「全部平台」时留在当前工作区，不把人甩到默认平台。文案随之删掉与按钮重复的地址（「到「直播」页」「先到「录制设置」里」），只留原因与结果。<span class="d">落地订正（2026-09-30 二次）：这两枚按钮/链接都已撤。页头右上角那一排（去直播页 / 打开保存目录 / 录制设置）是这一屏唯一的快捷入口轴，空态里再各挂一枚同去向的，用户先要判断该点哪个 —— ㉗ 治的是「读到了动作却手边没有可点的东西」，撤掉重复入口治的是「一屏三个入口指向同一页」。两版合起来的正解：<strong>页头给入口，空态给原因</strong>，详见 ㉟。</span>由 D15n 锁死（四条判据已随 ㉟ 反转）。<br/>
+      ㉘ <strong>零数据页的下半屏交给空槽，不交给裸页面底</strong>：㉕ 把空态收成有界卡后，实测录制页仍有 <b>380px</b> 的空白落在框外（页面短于视口时，剩余高度什么也不属于）。现录制页正文列 <code class="tok">min-h-full flex flex-col</code>，「进行中」空态改成会长高的空槽（<code class="tok">flex-1 + min-h-[200px]</code>，实测 1380×860 下 538px、1024×660 下 338px），留白因此被边框收进「这一栏在等任务进来」的语义里；<strong>槽内内容贴顶而非居中</strong> —— 居中会让一行小字飘在 538px 框的正中，只是隔了一层边框的「整屏一行小字」，正是 ㉕ 要反对的样子。库为空仍是底部一行提示（页头已有一只大空槽，同一屏摆两只空盒子是自我重复）。账号页实测余量 85px，不动。由 D15o 锁死。<br/>
+      ㉙ <strong>关注/取关的承载矩阵（用真实数据逐点取证后定稿）</strong>：本机 876 位关注、Panda 5 在播 / SOOP 19 在播，四个承载点全部实机看过 —— ① <strong>已关注的卡片形态</strong>（在播关注 / 统一墙）：卡面只有 ⏺（hover 出现）与「…」，取关在「…」菜单里；② <strong>已关注的紧凑行形态</strong>（离线关注）：行尾 ✕；③ <strong>发现卡</strong>：hover 心形，正向关注是这一屏的唯一主行动；④ <strong>播放页</strong>：页头按钮。<strong>在播坞不承载取关</strong>（它是读数条不是管理现场，实机确认坞内只有头像与「全部在播 ›」；<span class="d">2026-10-01：这条"不承载"最终没能救下它 —— 既然什么都不承载，就整体撤掉了，D16e 改锁顶栏徽标</span>）。本轮改两处：<strong>播放页的「取消关注」从中性灰改 error 档</strong> —— 其余三处取关全是红字，同一动作在第四处反而最不像它；<strong>卡片菜单的两行动作从 <code class="tok">div+cursor-pointer</code> 改回 <code class="tok">button</code></strong> —— div 键盘 Tab 到不了，而同一动作在离线行上一直是可聚焦的按钮。心形那一处<strong>仍没能实机验到</strong>：Panda 未认证 → 站内发现 0 张卡，SOOP 发现未开放 → 也是 0 张，承载点在空墙上不存在（D16c/c2 只能静态锁「心形只挂在 hoverActions、全应用只两枚」）。由 D16a–e 锁死。<br/>
+      另有<strong>五处没照字面执行</strong>（保留现状，理由如下）：<br/>
+      · <strong>录制页的「历史任务」段已按 ㉒ 落地，但落点不是「历史任务」</strong>：录制页第三段直接叫「库」，就是原视频库页的全部能力（分组 / 索引条 / 搜索 / 缩略图 / 影院浮层 / 合并），不新造「最近完成 + 查看全部」这种同一批数据的第二套说法。<br/>
+      · S7「VOD 管线」的 <code class="tok">.meter</code> <strong>没有整条换成文字链，而是拆成两件事</strong>（2026-09-30 按真实代码订正本条早先的失实表述）：<strong>跑在哪一棒</strong>用文字链（录制/下载 → 转码 → 合并 → 入库，已过淡灰 / 当前加粗带呼吸点 / 未跑幽灵灰），<strong>完成多少</strong>仍用 <code class="tok">.meter</code> —— 回放的全长来自 m3u8 清单（<code class="tok">vodTotalSec</code>），是一个真分母，不是猜的百分比；清单拉不到全长时退回纯文字，宁可不画也不画一条永远 0% 的假条。直播任务不给百分比（分段录制没有可预测的终点）。全应用因此<strong>只有一条进度条</strong>，由 D16f–h 锁死（样式有定义 / 唯一落点 / 只在回放分支且被真分母守卫 / 不引 <code class="tok">n-progress</code> 做第二套）。<br/>
+      · 本条在 2026-09-30 用真实数据实机跑过一轮（真起一段 SOOP 直播录制 83s 后停止），当场暴露三件静态检查看不到的事，均已修：① <strong>转码从未产出过 MP4 且完全静默</strong> —— 原子产物刻意叫 <code class="tok">&lt;mp4&gt;.part</code>，而 ffmpeg 按输出扩展名选封装器，猜不出 <code class="tok">.part</code> 就非零退出、一个字节都不写，<code class="tok">remux()</code> 又只在成功路径留痕 ⇒ 开着「自动转 MP4」录一百次也是零次转码。现两处 spawn 补 <code class="tok">-f mp4</code>、失败路径补日志，并把这条规则塞进伪 ffmpeg（它以前不挑输出名，所以整条链路全灭也测出 PASS）；② <strong>实时码率是采样噪声</strong> —— 字节由主进程每 2s stat 一次，推送却按状态变更随时发，按推送间隔做差分让 8.4 Mbps 稳流在 <code class="tok">0.0 / 8.4 / 17.8 / 26.1</code> 之间跳（12 次采样里 3 次读成 0.0）；现差分基线只在字节真长了时推进，窗口未满沿用上一读数，实测同一条流稳定落在 4.2–8.4；③ <strong>回放行的首棒写着「拉取直播源」</strong> —— 下载中/录制中早已按 <code class="tok">task.vod</code> 分叉，第一棒漏了。回放行的有数据形态（35% / 无分母退回纯文字 / 收尾 100%）见 ㉚ 的取证口径。<br/>
+      ㉚ <strong>呈现类结论只能由实机取证，静态断言会放行"整条静默失败"</strong>：本稿一度把 S7 与 ㉙ 挂在「要有真实录像和在播源才能验」上挂起，而本机 876 位关注里有 24 间在播 —— 缺的从来不是数据，是「先跑一遍」这一步。补跑之后：㉙ 的四个承载点全部实机看过并改掉两处；S7 查出上面那三件事，其中 ① 是能让全部录制产物停在 TS 的功能性事故，而它在 <code class="tok">npm run verify</code> 的 75 条 P1 断言里一直是绿的。<strong>据此定口径：凡结论写成「某一屏长什么样」，就必须给出该屏被真实渲染过一次的证据</strong>（真任务 / 真数据 / 截图）；现场确实不存在的（如发现卡的心形 —— Panda 未认证、SOOP 发现未开放，两平台各 0 张卡）要写明"不存在"而不是"待验证"。回放行的有数据形态是本轮唯一没能在真机上跑出来的一段：Panda 回放 14 间全部拉源失败（13 间 <code class="tok">castEnd</code>、1 间网络断连），故该三态（35% / 无分母 / 100%）由注入与真任务同形状的 <code class="tok">RecTask</code> 渲染取证，只动渲染层内存、不落盘不写库；<strong>主进程侧 <code class="tok">vodTotalSec</code> 的真值来源（<code class="tok">fetchPlaylistDurationSec</code> 解析清单）本轮没有独立回归，仍是一处已知缺口</strong>。<br/>
+      ㉛ <strong>改版收口要清场：死令牌、无主资产、按旧页面划分写成的设计稿，都是下一轮开发的假依据</strong>（2026-09-30 提交前体检落地）。本轮清掉四类堆积：① <code class="tok">tailwind.config.js</code> 里没人用的 <code class="tok">shadow-glow-brand</code> / <code class="tok">rounded-badge</code>（3.4「不留死令牌」此前只对 <code class="tok">animate-pop</code> 有一条断言，现在扩成 D17a 全量清单 + 解析下限，防止规则空转假绿）；② 字典里两语言都有、代码里一次没取过的 <code class="tok">common.myriad</code>（<code class="tok">fmtNum</code> 自己按 isZh 拼「万 / k」，键是早期方案的遗骸）；③ <code class="tok">docs/design/preview/</code> 五张 1.9MB 设计稿导出图 —— 零引用，且画的是改版前的「直播/录制/视频库」四段顶栏，留着比删掉更有害；④ 三份没有覆盖横幅的单页设计稿（设置 / 账号 / 观看），它们仍以"活文档"口径描述已被本稿 S5/S6/S9 改掉的分节与控件（设置页缺「外观」档、监控一卡未按平台拆、通知还是全局开关；账号页的「账号密码登录(推荐)」方案 A 从未落地；观看页写死 1080P 四档表和「主线/备用 1/备用 2」，而真实档位来自房间 master 变体、SOOP 根本不给线路清单）。<strong>口径：历史设计稿要么带横幅、要么按现行稿重画，不允许第三种状态存在</strong> —— 由 D17b 断言每份非现行稿必带 <code class="tok">superseded-banner</code>，D17c 断言 <code class="tok">docs/</code> 下不放二进制资产，D17d~f 断言 README 的双平台口径 / verify 链 / SOOP 半边源码在案。<br/>
+      ㉜ <strong>风格统一的最小单位不是「页」，是「同一个物件的第二套规格」</strong>（2026-09-30 令牌层收敛落地）。按页扫风格必然扫不完：页面逻辑早已一致，剩下的全是一种物件被画了两遍。本轮查出并归并的七组重复规格 —— ① 平台色点四套（<code class="tok">TopNav .platdot</code> / <code class="tok">PlatFilter .pf__dot</code> / <code class="tok">PlatTag .plat-tag__dot</code> / 库段分解行的内联 <code class="tok">:style</code> 底色），尺寸 5~8px 不一、描边有无不一，其中内联那一套完全没有描边，SOOP 黄压白卡 1.43:1 等于看不见 → 收成全局 <code class="tok">.pdot</code> 一处（7px + <code class="tok">ink3</code> 1px 环，徽标内 <code class="tok">.pdot-sm</code> 5px）；② 顶栏计数药丸手搓 <code class="tok">min-w+rounded-full</code> 与 <code class="tok">.sec-n</code> 并存 → 收成 <code class="tok">.platn</code>；③ 视图分段计数是裸字加三元色 → 归 <code class="tok">.sec-n</code>；④ 等宽数字两种拼法（<code class="tok">.tnum</code> 与 <code class="tok">tabular-nums</code>）→ 删 <code class="tok">.tnum</code>，只留 Tailwind 一种，否则「谁漏了一处」根本查不出来；⑤ 离档圆角约 32 处（<code class="tok">rounded-sm/lg/xl/2xl</code> 与任意值、滚动条与进度条端点 3px）→ 全量落到 14/10/6(sm=5)/999 四档；⑥ 段距 22 与 20 混用（§0.4 早点名要废 22，实际还留着）→ 废 22；⑦ 控件高度按内容撑（chip 28 vs 27、浮层动作行 34 vs 30、CTA 104 vs 112）→ 显式锁 <code class="tok">h-*</code> 与 <code class="tok">!w-[Npx]</code>。<span class="d">落地订正（2026-09-30）：锁 <code class="tok">h-*</code> 这条不变；<code class="tok">!w-[Npx]</code> 对<strong>按钮</strong>作废 —— 高度不由译文决定，宽度是，定宽等于裁翻译。按钮一律 <code class="tok">!min-w-[Npx]</code>（竖排列把下限放容器上），由 D28/D28b/D28c 锁死，见 S9 的账号页订正。</span><strong>另外两处不是"不统一"而是"两套真相"</strong>：设置·关于的 GitHub 按钮写死 <code class="tok">#24292f/#0d1117</code> 两枚十六进制（D3 只查 Tailwind 原生色与 class/style 里的 <code class="tok">#hex</code> 字面量，它挂在 <code class="tok">bg-[#24292f]</code> 的任意值里，靠 D4 白名单混过去 —— 白名单条目随该次改动失效而被 D4 自己判 FAIL，这是白名单机制第一次真的拦住东西），现改走 <code class="tok">bg-fill + border-line + text-ink1</code>，两主题各自取值；<code class="tok">App.vue</code> 的 naive 主题覆盖与 <code class="tok">styles.css</code> 语义变量此前只是注释里承诺一致，实测深色 <code class="tok">errorColor</code> 停在浅档。<strong>口径：新增断言必须带"解析面下限"（D18a0/D19d/D21b/D22a~c/D23a0/D24a0），否则规则空转就是假绿</strong> —— 本轮 D22 首跑正是靠这条下限暴露出它自己把 <code class="tok">.dark</code> 解析到了 <code class="tok">:root</code> 块尾（<code class="tok">.dark</code> 先以文字出现在 <code class="tok">:root</code> 的注释里），修成锚定块头之后才量到真漂移。<br/>
+      ㉝ <strong>设置页的「全局 / 平台」不能靠徽标区分，要靠节区分</strong>（2026-09-30 三域 IA 落地）。S6 的判据（含义不同的设置下沉平台节）此前只在「监控」一卡内用三张子卡表达：改一个 SOOP 的开关要在一屏全局项里找平台徽标；通知矩阵把两平台的 16 格摆进同一张表，「全部关闭」一次哑掉两个平台；「开播自动录制默认值」一块里并排两枚平台徽标。现侧栏导航分三域（<code class="tok">全局</code> / <code class="tok">平台</code> 两枚组标签 + 关于），正文九节与导航同序（scrollspy 的前提）：平台专属键（<code class="tok">watchMode</code> / <code class="tok">keepaliveStream</code> / <code class="tok">autoRecordDefault</code> / <code class="tok">notify</code>）只落在平台节，全局节不再挂平台徽标；<code class="tok">prefetchStream</code> 与 <code class="tok">requestGapMs</code> 经主进程消费点核实为两平台共用（watcher 进房预热 / <code class="tok">api.setGap</code> + SOOP 轮询同吃），留在监控节。<span class="d">2026-10-01 订正：这一句当时判的是"代码路径共用"，而用户要的独立是"两平台各自握有这一格" —— 三格（含 <code class="tok">pollIntervalSec</code>）自此按平台各一格、引擎两套独立定时器，「监控」节整体撤掉。当年那句"共用"其实已经暗示了病灶：Panda 一轮是翻页的全站列表、SOOP 一轮只发一发，同一条时间轴上提速一个必然拽快另一个。</span><strong>脏点与整块开/关一并按平台走</strong>：只改 SOOP 那一半时亮 Panda 的点就是谎报，故 <code class="tok">dirtySecs</code> 对这两个跨平台键做逐平台深比对，「全部开启/关闭」也变成各平台节内的一枚按钮。SOOP 采集三行仍是只读事实（S6 判据不变，从子卡升格为平台节内的「采集」组）。实机验证 71 条断言全绿（CDP 驱动真渲染：逐项编辑 → 逐步脏计数 → 保存 → 盘上真值 → 主题/语言即时通道 → 入站闸门 → 轮询模式生效），含两条平台隔离断言：只改一个平台只亮一个平台的脏点；SOOP「全部关闭」不回踩 Panda。同轮把两处承载面也归回全站语言：五处「多选一」从 naive radio-button（描边方盒 + 主色描边选中，全站第二套分段语言）换成自绘 <code class="tok">Seg.vue</code>（填充容器 + 瓷片选中，与左导航同档；<code class="tok">role=radiogroup/radio</code> 语义与全站 focus-visible 焦点环保留，高度锁 h-7）；通知矩阵从裸 <code class="tok">&lt;table&gt;</code>（通栏细线 + 悬空表头 + 右端 92px 小开关列）换成 <code class="tok">bg-fill rounded-ctl</code> 面板，逐事件带一行说明，声音列仍只在开播行给开关、其余标「—」。实机断言扩到 82 条全绿，新增 Seg hover / Tab 焦点环 / 矩阵行 hover 三组交互态留档。<br/>
+      ㉞ <strong>页头快捷入口的文案承诺，就是它的验收标准</strong>（2026-09-30 实机 CDP 逐枚点过录制页页头三枚：typecheck / verify / build 全绿，而三枚里两枚点了没反应）。① <strong>「打开保存目录」在 <code class="tok">savePath</code> 为空时被写成跳设置页</strong> —— 空串从来不是「没有保存目录」，录制一律落默认录制根 <code class="tok">&lt;数据根&gt;/recording</code>（设置页那一行显示的也是它），点「打开目录」却被甩到另一页等于没回答他问的问题；现按同一口径解到默认根，<strong>白名单过关后先 <code class="tok">mkdir -p</code> 再开</strong> —— 默认根只在第一次开录时才建，而 <code class="tok">shell.openPath</code> 对不存在的路径只回一个错误串、界面毫无动静，这是"点了没反应"的第二条根因（错误串此前被丢弃，现进日志）。② <strong>「录制设置」只 push 到设置页第一屏（外观）</strong> —— 按钮写的是节名，落点就得是那节：设置页新增 <code class="tok">?sec=&lt;节&gt;</code> 深链，滚动挂在 <code class="tok">scrollRef</code> 上而不是 <code class="tok">onMounted</code>（整页在 <code class="tok">v-if="form"</code> 里，settings 未到时根本没有容器可滚）。③ <strong>失败必须出声</strong>：主进程只在目录真打开后回 <code class="tok">true</code>，渲染层拿到 <code class="tok">false</code> 给一条 <code class="tok">rec.openDirFail</code> 提示 —— 与 ㉚ 同一口径，静默 no-op 在静态断言里永远是绿的。<br/>
+      ㉟ <strong>一个去向在一屏只允许一个入口：㉗ 补的两枚按钮就此撤掉</strong>（2026-09-30 二次订正，判据换向）。录制页无数据时同屏出现两枚「去直播页」（页头右上角 + 「进行中」空槽正中），库空态行末尾再挂一枚「录制设置 ›」而页头已有同名一枚 —— 页头那一排本来就是这一屏的快捷入口轴，空态再各挂同去向的入口，用户第一步变成判断该点哪个。<strong>缺入口是缺陷，多入口是噪声</strong>：现空态只给结论与指引（进行中空槽留「点 ⏺ 开始录制，或在关注视图开启「开播自动录制」」一句；库空态行收成一句「库里还没有视频」），去向说明文案键 <code class="tok">library.emptyGoLive</code> / <code class="tok">library.emptyNoDir</code> 随之删除。同轮去掉段标题右侧那栏复读的「磁盘充足」（见 S4 ③ 的订正），<code class="tok">secCaption</code> 只剩「分段 N 分钟/段」，全回放时该栏为空、分隔线一起收掉。由 D14g / D15n / D15n2 / D15n3 锁死 —— 四条断言本轮从「必须出现」反转为「不再出现」，反转本身要留判据文字，否则下一轮又会把按钮补回来。<br/>
+    </div>
+
+    <div class="sec"><h2>8.2 一期需要的数据面扩展（设计时两处，落地时四处；都不给轮询加请求）</h2><span class="d">界面设计倒逼的最小后端改动，比现状还省 —— C 复用同步那一趟，D 只在用户点击时发一次</span></div>
+    <table class="spec">
+      <thead><tr><th style="width:210px">扩展</th><th>说明</th><th style="width:150px">代价</th></tr></thead>
+      <tbody>
+        <tr>
+          <th class="k">A · <code class="tok">Anchor.lastLiveAt</code></th>
+          <td>离线行的「上次开播 / 未播 N 天」需要它。现状只有 <code class="tok">lastSeenAt</code>（我们最后一次拉到他），语义不同不能挪用。SOOP 侧官方回包已带 <code class="tok">last_broad_start</code>，<strong>代码已解析后被丢弃</strong> —— 捡回来即可。Panda 侧在状态翻「离线」那一轮把当时的 <code class="tok">startTime</code> 写进去，之后不再覆盖。</td>
+          <td>类型 + 两处写入 + db 迁移容忍（老记录无该字段显示「无开播记录」）</td>
+        </tr>
+        <tr>
+          <th class="k">B · 按平台拆 <code class="tok">WatcherStatus</code></th>
+          <td>现状是单个合并对象，Panda 的冷却/熔断 message 与 SOOP 的整轮失败挤在同一条 <code class="tok">message</code> 里，<code class="tok">watcher.ts</code> 里已经存在一段「SOOP 不许覆盖 Panda 的 message」的补丁注释。一级导航按平台分之后，每个工作区必须能读到<strong>自己</strong>的状态、上轮耗时与失败计数 —— 顺便把那处补丁删掉。</td>
+          <td>结构改为 <code class="tok">{ pandalive: Status, soop: Status }</code>（或加 <code class="tok">byPlatform</code> 映射，保留旧字段做一层薄兼容即可，内部消费方都在本仓库）</td>
+        </tr>
+        <tr>
+          <th class="k">C · <code class="tok">Anchor.siteGone</code><br/><span class="d">落地时补，D3 倒逼</span></th>
+          <td>「站内已取关 · 本地仍保留」的落点。写在<strong>已有的</strong>「同步站内关注」那一趟里（列表与本地墙做反向差集），一次都不额外发请求；重新出现在站内列表即清掉。字段是<strong>可选三态</strong>：<code class="tok">undefined</code>=从未同步过（未知，界面不许标注）、<code class="tok">false</code>=仍在站内、<code class="tok">true</code>=站内已取关。Panda 북마크 取满官方 200 上限时列表可能不完整，那一趟直接跳过差值 —— 宁可不标，也不把「没翻到」报成「已取关」。</td>
+          <td>一个可选布尔 + 导入路径一段差集；不删数据，老 <code class="tok">db.json</code> 读进来即为「未知」</td>
+        </tr>
+        <tr>
+          <th class="k">D · <code class="tok">lastVerifyAt</code> + <code class="tok">auth:recheck</code><br/><span class="d">落地时补，S9 第 3 处倒逼</span></th>
+          <td>S9 要求「会话未认证」与「已登录」不能只靠颜色区分，得说清<strong>官方最后一次真实答复是什么时候</strong>，并给一枚手动复检。两侧服务各记一个「真发出请求」的时刻（命中 30s / 2min 结果缓存时沿用缓存时刻，不刷新成「现在」；<code class="tok">netFail</code> 也记，因为失败时刻同样要摊给用户看）；<code class="tok">auth:recheck</code> 绕过缓存强发一次后回整套登录态。只有用户点击才发，<strong>不进任何轮询</strong>。</td>
+          <td>两个只读字段 + 一条新 IPC；无新增周期请求</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="sec"><h2>8.3 决策记录（六项全已定）</h2><span class="d">六项都已锁定并写进各屏；工作区布局形态（L1）曾考虑「三段单页滚动墙」，因关注一多就把站内发现顶得太远而改用视图分段</span></div>
+    <table class="spec">
+      <thead><tr><th style="width:60px">状态</th><th style="width:210px">决策点</th><th>结论与依据</th></tr></thead>
+      <tbody>
+        <tr><td class="yes">✓ 已确认</td><td>一级导航形态</td><td>平台优先：顶栏「Panda / SOOP」分段（换平台、留页面）+ 其下两条页面「直播 / 录制」，平台在播数做分段徽标、录制数做页面徽标。一级轴是平台，页面轴不再混排两平台内容。<strong>（原确认稿写的是三条含「视频库」；落地时库并入录制页第三段，页面轴随之收敛为两条 —— 见 ㉒，此为对已确认项的唯一改动）</strong></td></tr>
+        <tr><td class="yes">✓ L1 已定</td><td>工作区三模块的排列形态</td><td><strong>方案 A · 视图分段</strong>（你确认；原稿的「+ 常驻在播坞」落地后撤掉）。初稿的「三段单页滚动墙」被否决（关注一多，站内发现被顶到很远，而发现自身内容也不少）；方案 C 横向泳道在 L 屏已写明否决理由。A 的成立前提原本是「在播坞补回看不见的关注在播」，把滚动墙丢掉的『一进来就看到我关注的人在播』补回来（坞的出现范围先按 ㉖ 收窄为非在播两个视图，后整体撤掉 —— 补回这件事改由分段第一档的计数与顶栏徽标做），一期 8.1③ 按此落地。</td></tr>
+        <tr><td class="yes">✓ 已确认</td><td>视觉主色</td><td>中性主色 + 平台色仅表身份；具体色值见下方 D1（已锁 <code class="tok">#2F4B7C</code>）。</td></tr>
+        <tr><td class="yes">✓ 已确认</td><td>高密度形态</td><td>在播卡片 + 离线紧凑行。</td></tr>
+        <tr><td class="yes">✓ D1 已定</td><td>主色到底是哪支蓝</td><td>维持中性蓝 <code class="tok">#2F4B7C</code>（稳重、和 SOOP 黄互补、8.68:1）。备选 <code class="tok">#3B4C6B</code> 与「品牌粉加深到 <code class="tok">#D8306A</code>」都不采用 —— 后者会让 SOOP 工作区仍穿着 Panda 的颜色。</td></tr>
+        <tr><td class="yes">✓ D2 已定</td><td>SOOP 的「站内发现」一期怎么摆</td><td>方案 1：<strong>保留发现分段 + 引导卡</strong>，分段位置与 Panda 同构，明确写「未开放」。二期接口确认后无缝替换，不再改一次导航（见 S2 的 2.1）。</td></tr>
+        <tr><td class="yes">✓ D3 已定</td><td>「同步站内关注」是否要反向差值</td><td>纳入一期，<strong>只标注「站内已取关」，不自动删除</strong>，也不做批量清理（清理留在二期）。</td></tr>
+        <tr><td class="yes">✓ D4 已定</td><td>通知按平台矩阵是否一期做完</td><td>一期做矩阵（设置数据结构 + TG 推送过滤同时改）。理由：SOOP 那批离线房刷屏是混合监控期最大痛点，不拆开关这轮改版就没解决实际问题。</td></tr>
+        <tr><td class="yes">✓ D5 已定</td><td>「启动默认工作区」新增设置项</td><td>要，三选（记住上次 / 恒 Panda / 恒 SOOP），默认「记住上次」；成本约 10 行。</td></tr>
+      </tbody>
+    </table>
+
+    <div class="sec"><h2>8.4 工作量与风险</h2><span class="d">让你判断这是不是一次「可控的全量翻新」</span></div>
+    <table class="spec">
+      <tbody>
+        <tr><th class="k">改动面</th><td>渲染层为主：<code class="tok">router.ts</code>、<code class="tok">TopNav.vue</code>、新 <code class="tok">WorkspaceView.vue</code>（合并 Explore + Monitor）、<code class="tok">AnchorCard/ExploreCard</code> 合成一张卡、<code class="tok">PlatTag/PlatFilter</code> 收敛、<code class="tok">PlayerView</code> 文案与区块显隐、<code class="tok">SettingsView</code> 分节与矩阵、<code class="tok">styles.css</code> + <code class="tok">tailwind.config.js</code> 令牌替换。主进程只动 8.2 两项与 TG 链接生成。</td></tr>
+        <tr><th class="k">i18n</th><td>这是最大的一块隐性成本：新增约 60 条、改名约 40 条，<strong>zh-CN 与 en-US 必须同步</strong>（本稿的命名表 5.2 就是给这一步准备的）。建议以 zh-CN 为基准字典先全量改，再逐条对齐 en-US。</td></tr>
+        <tr><th class="k">最大风险</th><td>旧深链。仓库脚本与用户收藏里存的是 <code class="tok">#/player/&lt;userId&gt;</code>、<code class="tok">#/explore</code>、<code class="tok">#/monitor</code>，路由一改全部失效 —— 一期必须保留兼容重定向并加一条 verify 脚本断言（<code class="tok">scripts/verify-deeplink.mjs</code> 直接实例化真路由表，覆盖新表、五条旧深链、D5 落点、afterEach 记忆、非法地址归位、查询串透传）。<b>订正：</b>Telegram 推送正文用 <code class="tok">roomUrl()</code> 生成的是站内网页链接，不随本次改版失效。</td></tr>
+        <tr><th class="k">不可逆点</th><td>无。令牌替换与路由重定向都可整体回滚；8.2 的两个字段只新增不删除，老 <code class="tok">db.json</code> 能直接读。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+<script>
+  const sws = document.querySelectorAll('.sw[data-s]');
+  sws.forEach(b => b.addEventListener('click', () => {
+    sws.forEach(x => x.classList.toggle('on', x === b));
+    document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === b.dataset.s));
+    window.scrollTo(0, 0);
+  }));
+  document.getElementById('themeBtn').addEventListener('click', e => {
+    const d = document.documentElement.dataset.theme === 'dark';
+    document.documentElement.dataset.theme = d ? '' : 'dark';
+    e.target.textContent = d ? '◐ 深色' : '◑ 浅色';
+  });
+</script>
+</body>
+</html>
