@@ -1,11 +1,12 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage, session } from 'electron'
 import * as path from 'path'
-import { registerIpc, pushAccount } from './ipc'
+import { registerIpc, pushAccounts } from './ipc'
 import { api, SESSION_PARTITION, applyProxy } from './services/pandalive'
+import { soopApi } from './services/soop'
 import { store } from './services/store'
 import { watcher } from './services/watcher'
 import { recorder } from './services/recorder'
-import { UA, redirectElectronDataDir } from './util'
+import { UA, redirectElectronDataDir, windowBg } from './util'
 import { mt, setMainLocale } from './i18n'
 import { logger } from './services/logger'
 import { registerMediaScheme, installMediaHandler } from './services/localMedia'
@@ -70,9 +71,9 @@ function createWindow(): void {
     minHeight: 660,
     frame: false,
     show: false,
-    // 启动窗口底色跟随主题, 避免加载瞬间主题不符的闪屏
-    backgroundColor: cfg.theme === 'dark' ? '#181818' : '#f1f2f3',
-    title: 'PandaLive Monitor',
+    // 启动窗口底色跟随主题, 避免加载瞬间主题不符的闪屏(切换时由 settingsSet 同步 setBackgroundColor)
+    backgroundColor: windowBg(cfg.theme),
+    title: 'SODALive Monitor',
     icon: path.join(__dirname, '../../resources/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
@@ -124,7 +125,7 @@ function createTray(): void {
       icon = loadColored()
     }
     tray = new Tray(icon)
-    tray.setToolTip('PandaLive Monitor')
+    tray.setToolTip('SODALive Monitor')
     tray.setContextMenu(
       Menu.buildFromTemplate([
         { label: mt('tray.show'), click: () => (mainWin ? mainWin.show() : createWindow()) },
@@ -152,7 +153,7 @@ function createTray(): void {
 app.whenReady().then(() => {
   // 初始化服务
   logger.cleanup()
-  logger.info('app', `PandaLive Monitor v${app.getVersion()} 启动 (packaged=${app.isPackaged})`)
+  logger.info('app', `SODALive Monitor v${app.getVersion()} 启动 (packaged=${app.isPackaged})`)
   installMediaHandler()
   const cfg = store.getSettings()
   setMainLocale(cfg.locale)
@@ -163,28 +164,38 @@ app.whenReady().then(() => {
   registerIpc()
   createWindow()
   createTray()
-  pushAccount()
+  pushAccounts()
 
   // 启动登录态自愈(异步, 不挡窗口): vault 快照被服务端判死时, 尝试接管本地浏览器存储里更新的 cookie;
   // 治愈成功再推一次账号状态, UI 徽标随之翻绿
   void (async () => {
     if (api.hasSession() && !(await api.checkLoginInfo()).isLogin && (await api.healFromStore())) {
-      pushAccount()
+      pushAccounts()
     }
   })()
 
   // 启动轮询
   watcher.start()
-  logger.info('watcher', `轮询启动(mode=${cfg.watchMode}, 间隔=${cfg.pollIntervalSec}s, gap=${cfg.requestGapMs}ms)`)
-  // 源保活泵: 维持已缓存源的会话活性(退出观看后满员房也能凭旧源继续看)
-  api.startKeepalive()
-  // 重启后源缓存(内存态)为空: 对库态"已关注且在播"的主播补一轮预取 ——
-  // 与 anchorsAdd 关注已在播补洞同构; db 陈旧态(实际已下播)拉源失败不落缓存, 仅白耗一发节流请求
-  if (cfg.prefetchStream) {
-    for (const a of store.listAnchors()) {
-      if (a.isLive) watcher.prewarmNow(a.userId)
-    }
+  // 两平台各一行: 节奏已经分家, 挤成一行等于把"谁在跑多快"重新糊回去
+  for (const p of ['pandalive', 'soop'] as const) {
+    const m = cfg.monitor[p]
+    logger.info(
+      'watcher',
+      p === 'pandalive'
+        ? `Panda 轮询启动(mode=${cfg.watchMode}, 间隔=${m.pollIntervalSec}s, gap=${m.requestGapMs}ms)`
+        : `SOOP 轮询启动(间隔=${m.pollIntervalSec}s, gap=${m.requestGapMs}ms)`
+    )
   }
+  // 源保活泵: 维持已缓存源的会话活性(退出观看后满员房也能凭旧源继续看), 并顺带做 Panda 侧的年龄收手
+  api.startKeepalive()
+  // SOOP 没有心跳可打, 但同一句记账纪律要有: 缓存里那份签名源过龄就该出队, 徽标才说实话。
+  // 这一条只扫内存, 零网络, 也不受 keepaliveStream 影响
+  soopApi.startCacheSweep()
+  // 上次退出前手上的签名源读回内存账(只读盘, 不发请求), 复活与否等首轮列表那句真值
+  soopApi.restorePlayCache()
+  // 重启后源缓存(内存态)为空的补洞改由 watcher 在首轮落地后做:
+  // 旧实现在这里按库里的 isLive(上一场的快照)逐个 prewarm —— 开机头 90 秒实测 14~36 发整页读
+  // + 16~21 发取流, 其中不少房其实已经下播; 首轮先用真值把状态校准, 再只预取仍然在播且无源的房
 
   app.on('second-instance', () => {
     if (mainWin) {
@@ -219,11 +230,13 @@ app.on('before-quit', (e) => {
       .finally(() => {
         logger.info('app', '录制收尾完成, 应用退出')
         store.flush()
+        soopApi.flushPacks()
         app.quit()
       })
     return
   }
   store.flush()
+  soopApi.flushPacks() // 源留存的落盘有 2 秒合并窗口, 退出前把挂起的那一次结掉
 })
 
 // OS 关机/注销(Windows WM_ENDSESSION): 走同一优雅退出链 —— 否则录制被硬杀

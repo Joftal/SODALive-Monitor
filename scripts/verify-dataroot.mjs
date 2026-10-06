@@ -41,9 +41,9 @@ const setPathCalls = []
 const appMock = {
   isPackaged: true,
   getPath: (k) =>
-    k === 'exe' ? path.join(dirs.exeDir, 'PandaLive Monitor.exe')
+    k === 'exe' ? path.join(dirs.exeDir, 'SODALive Monitor.exe')
     : k === 'userData' ? dirs.userData
-    : path.join(dirs.portable, 'PandaLive Monitor.exe'),
+    : path.join(dirs.portable, 'SODALive Monitor.exe'),
   getAppPath: () => dirs.proj,
   setPath: (k, v) => setPathCalls.push([k, v])
 }

@@ -55,9 +55,12 @@ jobs:
         include:
           - os: windows-latest
             builder: '--win --x64'
+            # glob 用空格、finalize 表格用点号, 不是笔误: ${productName} 只过 sanitizeFileName(内部空格保留),
+            # 磁盘上是 "SODALive Monitor-Setup-x.y.z.exe"; 而 Releases 上的资产名是点号形态(v1.0.5~1.0.7 实测)。
+            # 哪天 Windows 资产缺了, 先核对这两侧是否还对得上, 别急着把其中一侧改成另一侧的样子
             relfiles: |
-              release/PandaLive Monitor-Setup-*.exe
-              release/PandaLive Monitor-Portable-*.exe
+              release/SODALive Monitor-Setup-*.exe
+              release/SODALive Monitor-Portable-*.exe
           - os: macos-latest
             builder: '--mac --x64 --arm64'
             relfiles: |
@@ -91,8 +94,9 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y libfuse2
 
-      # npm 会默认拦截部分 postinstall 脚本(electron/ffmpeg 二进制下载), 手动补跑
-      - name: Run blocked postinstall scripts
+      # 兜底重跑: npm ci 默认会执行依赖的 postinstall(ignore-scripts=false), 这三步在正常流程里是幂等空转;
+      # 只有 runner 上配了 ignore-scripts 时它们才是必需的 —— 缺二进制时 electron-builder 的报错更难查, 留着划算
+      - name: Re-run binary postinstall scripts
         run: |
           node node_modules/esbuild/install.js
           node node_modules/ffmpeg-static/install.js
@@ -100,6 +104,10 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      # 行为回归链(设计契约/数据根/源缓存/保活泵/网络闸门/录制管线/设置写入链/VOD 时长/关注导入/图缓存/深链/通知, 共 12 个脚本): 纯 Node, 不起 Electron
+      - name: Verify behaviour scripts
+        run: npm run verify
 
       - name: Build app bundle
         run: npm run build
@@ -119,7 +127,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ inputs.version }}
-          name: PandaLive Monitor v${{ inputs.version }}
+          name: SODALive Monitor v${{ inputs.version }}
           target_commitish: main
           draft: false
           prerelease: false
@@ -137,7 +145,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ inputs.version }}
-          name: PandaLive Monitor v${{ inputs.version }}
+          name: SODALive Monitor v${{ inputs.version }}
           target_commitish: main
           draft: false
           prerelease: false
@@ -147,13 +155,13 @@ jobs:
 
             | 文件(可点击) | 平台 | 说明 |
             |---|---|---|
-            | [PandaLive Monitor-Setup-${{ inputs.version }}.exe](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/PandaLive.Monitor-Setup-${{ inputs.version }}.exe) | Windows x64 | NSIS 安装包(推荐, 自动创建桌面快捷方式) |
-            | [PandaLive Monitor-Portable-${{ inputs.version }}.exe](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/PandaLive.Monitor-Portable-${{ inputs.version }}.exe) | Windows x64 | 便携免安装版, 数据随程序目录迁移 |
-            | [PandaLive Monitor-${{ inputs.version }}-x64.dmg](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/PandaLive.Monitor-${{ inputs.version }}-x64.dmg) | macOS Intel | DMG 安装包(免签名分发: 首次请右键 → 打开) |
-            | [PandaLive Monitor-${{ inputs.version }}-arm64.dmg](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/PandaLive.Monitor-${{ inputs.version }}-arm64.dmg) | macOS Apple Silicon(M 系列) | DMG 安装包(免签名分发: 首次请右键 → 打开) |
-            | [PandaLive Monitor-${{ inputs.version }}-x64.zip](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/PandaLive.Monitor-${{ inputs.version }}-x64.zip) | macOS Intel | ZIP 免安装版(同上, 右键打开) |
-            | [PandaLive Monitor-${{ inputs.version }}-arm64.zip](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/PandaLive.Monitor-${{ inputs.version }}-arm64.zip) | macOS Apple Silicon(M 系列) | ZIP 免安装版(同上, 右键打开) |
-            | [PandaLive Monitor-${{ inputs.version }}-x86_64.AppImage](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/PandaLive.Monitor-${{ inputs.version }}-x86_64.AppImage) | Linux x64 | 免安装, `chmod +x` 直接运行 |
-            | [PandaLive Monitor-${{ inputs.version }}-amd64.deb](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/PandaLive.Monitor-${{ inputs.version }}-amd64.deb) | Linux x64 | 安装包(依赖 `libsecret-1-0`, 安装器自动处理) |
+            | [SODALive Monitor-Setup-${{ inputs.version }}.exe](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-Setup-${{ inputs.version }}.exe) | Windows x64 | NSIS 安装包(推荐, 自动创建桌面快捷方式) |
+            | [SODALive Monitor-Portable-${{ inputs.version }}.exe](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-Portable-${{ inputs.version }}.exe) | Windows x64 | 便携免安装版, 数据随程序目录迁移 |
+            | [SODALive Monitor-${{ inputs.version }}-x64.dmg](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-x64.dmg) | macOS Intel | DMG 安装包(免签名分发: 首次请右键 → 打开) |
+            | [SODALive Monitor-${{ inputs.version }}-arm64.dmg](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-arm64.dmg) | macOS Apple Silicon(M 系列) | DMG 安装包(免签名分发: 首次请右键 → 打开) |
+            | [SODALive Monitor-${{ inputs.version }}-x64.zip](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-x64.zip) | macOS Intel | ZIP 免安装版(同上, 右键打开) |
+            | [SODALive Monitor-${{ inputs.version }}-arm64.zip](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-arm64.zip) | macOS Apple Silicon(M 系列) | ZIP 免安装版(同上, 右键打开) |
+            | [SODALive Monitor-${{ inputs.version }}-x86_64.AppImage](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-x86_64.AppImage) | Linux x64 | 免安装, `chmod +x` 直接运行 |
+            | [SODALive Monitor-${{ inputs.version }}-amd64.deb](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-amd64.deb) | Linux x64 | 安装包(依赖 `libsecret-1-0`, 安装器自动处理) |
 
             **数据位置**: Windows = 程序所在目录(data/ + electron-data/ + recording/, 安装版与便携版统一, 整体目录可备份迁移); macOS = `~/Library/Application Support/`; Linux = `~/.config/`

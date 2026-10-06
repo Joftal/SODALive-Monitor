@@ -271,6 +271,11 @@ async function pump(): Promise<void> {
 }
 
 export const thumbs = {
+  /** 诊断台: 九宫格图那条串行作业队今天完全不出声 —— 队堵了多少、有没有在干活、
+   *  是不是正处在关停期(关停期不接新活)。只读, 不碰队列本身。 */
+  diag(): { queued: number; working: boolean; inflight: number; terminating: boolean } {
+    return { queued: queue.length, working, inflight: inflight.size, terminating }
+  },
   /**
    * 确保任务缩略图存在: 命中直接返回 URL; 未命中入队后台生成(完成后走 EV.recThumb 推送)。
    * 文件集对账(外部删段剔除/恢复找回/全灭条目移除)已上移至 recorder.reconcileHistory —

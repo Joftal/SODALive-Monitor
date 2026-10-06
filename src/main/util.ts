@@ -36,6 +36,12 @@ export function dataDir(): string {
 }
 
 /** 默认录制根目录: 数据根/recording(未配置 savePath 时使用; 数据根三态见 dataRoot) */
+/** 窗口底色(与 styles.css 的 --c-page 同值): 主题切换时要同步改 BrowserWindow,
+ *  否则「主题立即生效」只管界面不管启动闪屏 —— createWindow 是一次性读值 */
+export function windowBg(theme: 'light' | 'dark'): string {
+  return theme === 'dark' ? '#14161a' : '#f4f5f7'
+}
+
 export function defaultRecordRoot(): string {
   return path.join(dataRoot(), 'recording')
 }
@@ -99,6 +105,11 @@ export function sleep(ms: number): Promise<void> {
 }
 
 let diskProbeWarned = false
+/** 探测有没有坏过: 坏过一次之后上面那个函数就永远回 MAX_SAFE_INTEGER, 磁盘阈值保护实际已关掉。
+ * 这件事今天只有日志知道, 而日志会滚出去 —— 诊断台要能一眼说出"保护还在不在" */
+export function diskProbeFailed(): boolean {
+  return diskProbeWarned
+}
 export function diskFreeGb(dir: string): number {
   try {
     const root = path.parse(path.resolve(dir)).root

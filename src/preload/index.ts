@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { CH, EV } from '../shared/types'
 import type { ApiBridge } from '../shared/types'
 import type {
-  AccountState, Anchor, AppInfo, DiscoveryItem, KeepaliveStatus, PlayInfo, RecDeleteFileResult, RecDeleteResult, RecHistoryItem, RecTask, RecThumbReady, Settings, Toast, UpdateCheckResult, WatcherStatus
+  AccountStates, Anchor, AppInfo, DiagLogPage, DiagSnapshot, DiscoveryItem, FollowImportResult, KeepaliveStatus, Platform, PlayInfo, PlayMenu, RecDeleteFileResult, RecDeleteResult, RecHistoryItem, RecTask, RecThumbReady, Settings, Toast, UpdateCheckResult, WatcherStatus
 } from '../shared/types'
 
 function on<T>(channel: string, cb: (payload: T) => void): () => void {
@@ -14,35 +14,49 @@ function on<T>(channel: string, cb: (payload: T) => void): () => void {
 // 单一事实源: ApiBridge(shared/types.ts); 环境无关的 env.d.ts 直接引用同一接口
 const apiBridge: ApiBridge = {
   // 账号
-  authState: (): Promise<AccountState> => ipcRenderer.invoke(CH.authState),
-  authOpenWindow: (): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke(CH.authOpenWindow),
-  authImportCookies: (cookieStr: string): Promise<{ ok: boolean; message: string }> =>
-    ipcRenderer.invoke(CH.authImportCookies, cookieStr),
-  authLogout: (): Promise<boolean> => ipcRenderer.invoke(CH.authLogout),
+  authState: (): Promise<AccountStates> => ipcRenderer.invoke(CH.authState),
+  authRecheck: (platform: Platform): Promise<AccountStates> => ipcRenderer.invoke(CH.authRecheck, platform),
+  authOpenWindow: (platform: Platform): Promise<{ ok: boolean; message: string }> =>
+    ipcRenderer.invoke(CH.authOpenWindow, platform),
+  authImportCookies: (cookieStr: string, platform: Platform): Promise<{ ok: boolean; message: string }> =>
+    ipcRenderer.invoke(CH.authImportCookies, cookieStr, platform),
+  authLogout: (platform: Platform): Promise<boolean> => ipcRenderer.invoke(CH.authLogout, platform),
+  authSaveSoopCredentials: (username: string, password: string): Promise<{ ok: boolean; message: string }> =>
+    ipcRenderer.invoke(CH.authSaveSoopCredentials, username, password),
 
   // 主播
   anchorsList: (): Promise<Anchor[]> => ipcRenderer.invoke(CH.anchorsList),
-  anchorsAdd: (input: string): Promise<Anchor> => ipcRenderer.invoke(CH.anchorsAdd, input),
-  anchorsRemove: (userId: string): Promise<boolean> => ipcRenderer.invoke(CH.anchorsRemove, userId),
-  anchorsSetAuto: (userId: string, auto: boolean): Promise<boolean> =>
-    ipcRenderer.invoke(CH.anchorsSetAuto, userId, auto),
-  anchorsRefresh: (): Promise<boolean> => ipcRenderer.invoke(CH.anchorsRefresh),
+  anchorsAdd: (input: string, platform?: Platform): Promise<Anchor> =>
+    ipcRenderer.invoke(CH.anchorsAdd, input, platform),
+  anchorsRemove: (platform: Platform, userId: string): Promise<boolean> =>
+    ipcRenderer.invoke(CH.anchorsRemove, platform, userId),
+  anchorsImportSoop: (): Promise<FollowImportResult> => ipcRenderer.invoke(CH.anchorsImportSoop),
+  anchorsImportPanda: (): Promise<FollowImportResult> => ipcRenderer.invoke(CH.anchorsImportPanda),
+  anchorsSetAuto: (platform: Platform, userId: string, auto: boolean): Promise<boolean> =>
+    ipcRenderer.invoke(CH.anchorsSetAuto, platform, userId, auto),
+  anchorsRefresh: (platform?: Platform): Promise<boolean> => ipcRenderer.invoke(CH.anchorsRefresh, platform),
 
   // 播放
-  livePlay: (userId: string, password?: string, fresh?: boolean): Promise<PlayInfo> =>
-    ipcRenderer.invoke(CH.livePlay, userId, password, fresh),
+  livePlay: (platform: Platform, userId: string, password?: string, fresh?: boolean): Promise<PlayInfo> =>
+    ipcRenderer.invoke(CH.livePlay, platform, userId, password, fresh),
+  liveMenu: (platform: Platform, userId: string, password?: string): Promise<PlayMenu> =>
+    ipcRenderer.invoke(CH.liveMenu, platform, userId, password),
+  liveSrcDead: (platform: Platform, userId: string, deadUrl?: string): Promise<boolean> =>
+    ipcRenderer.invoke(CH.liveSrcDead, platform, userId, deadUrl),
   liveSrcCache: (): Promise<string[]> => ipcRenderer.invoke(CH.liveSrcCache),
-  keepaliveStatus: (userId: string): Promise<KeepaliveStatus> => ipcRenderer.invoke(CH.liveKeepaliveStatus, userId),
+  keepaliveStatus: (platform: Platform, userId: string): Promise<KeepaliveStatus> =>
+    ipcRenderer.invoke(CH.liveKeepaliveStatus, platform, userId),
 
   // 大厅
   discoveryList: (): Promise<DiscoveryItem[]> => ipcRenderer.invoke(CH.discoveryList),
+  discoveryRefresh: (force?: boolean): Promise<DiscoveryItem[]> => ipcRenderer.invoke(CH.discoveryRefresh, force),
 
   // 录制
   recList: (): Promise<RecTask[]> => ipcRenderer.invoke(CH.recList),
   recHistory: (): Promise<RecHistoryItem[]> => ipcRenderer.invoke(CH.recHistory),
-  recStart: (userId: string, password?: string): Promise<RecTask | { ok: false; needPassword?: boolean; error?: string }> =>
-    ipcRenderer.invoke(CH.recStart, userId, password),
-  recStop: (userId: string): Promise<void> => ipcRenderer.invoke(CH.recStop, userId),
+  recStart: (platform: Platform, userId: string, password?: string): Promise<RecTask | { ok: false; needPassword?: boolean; error?: string }> =>
+    ipcRenderer.invoke(CH.recStart, platform, userId, password),
+  recStop: (platform: Platform, userId: string): Promise<void> => ipcRenderer.invoke(CH.recStop, platform, userId),
   recOpenFolder: (dir: string): Promise<boolean> => ipcRenderer.invoke(CH.recOpenFolder, dir),
   recDiskFree: (): Promise<number> => ipcRenderer.invoke(CH.recDiskFree),
   recMerge: (taskId: string): Promise<{ ok: boolean; files?: string[]; error?: string }> =>
@@ -66,6 +80,10 @@ const apiBridge: ApiBridge = {
   // 轮询
   watcherStatus: (): Promise<WatcherStatus> => ipcRenderer.invoke(CH.watcherStatus),
 
+  // 诊断台: 两个入口都是"问主进程要它本来就在记的账", 不触发任何外发动作
+  diagSnapshot: (): Promise<DiagSnapshot> => ipcRenderer.invoke(CH.diagSnapshot),
+  diagLogs: (sinceSeq: number, limit?: number): Promise<DiagLogPage> => ipcRenderer.invoke(CH.diagLogs, sinceSeq, limit),
+
   // 窗口
   winControl: (action: 'min' | 'max' | 'close'): Promise<void> => ipcRenderer.invoke(CH.winControl, action),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke(CH.openExternal, url),
@@ -87,7 +105,7 @@ const apiBridge: ApiBridge = {
   onAnchors: (cb: (list: Anchor[]) => void) => on<Anchor[]>(EV.anchors, cb),
   onRecordings: (cb: (list: RecTask[]) => void) => on<RecTask[]>(EV.recordings, cb),
   onWatcher: (cb: (s: WatcherStatus) => void) => on<WatcherStatus>(EV.watcher, cb),
-  onAccount: (cb: (s: AccountState) => void) => on<AccountState>(EV.account, cb),
+  onAccount: (cb: (s: AccountStates) => void) => on<AccountStates>(EV.account, cb),
   onToast: (cb: (t: Toast) => void) => on<Toast>(EV.toast, cb),
   onDiscovery: (cb: (list: DiscoveryItem[]) => void) => on<DiscoveryItem[]>(EV.discovery, cb),
   onRecThumb: (cb: (p: RecThumbReady) => void) => on<RecThumbReady>(EV.recThumb, cb),

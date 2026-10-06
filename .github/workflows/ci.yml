@@ -1,0 +1,49 @@
+name: CI
+
+# 打包前的最低门槛: 类型检查 + 行为回归脚本(纯 Node, 不起 Electron, 无需 xvfb)
+# 发版流水线(release.yml)自带同样两步, 此工作流只为 push/PR 尽早出声
+#
+# Linux 侧成立性(2026-09-30 静态审查时链上 10 个 verify 脚本, 现为 12 个 —— 下面每一条
+#   对新增的 verify-netgate / verify-imgcache 也逐条复核过, 两条同样只 import Node 内置 + sucrase):
+#   无 out/ 构建产物依赖 · 无 data/db.json 读写(不碰真实用户数据) · child_process 全替身(不 spawn ffmpeg)
+#   · 网络出口全是假 fetch/本地 127.0.0.1 服务 · 路径一律 path.join(无盘符与反斜杠) · 平台分支靠 defineProperty 覆写
+#   残留风险只有一个方向: 时间窗断言都是"轮询到条件成立即返回"的上限式(3~20s),
+#   慢机器上会提前返回而不会超时失败; 真正怕的是"等 6s 断言某事没发生"这类负向断言在慢机器上假绿。
+#   另: package-lock 的 resolved 全指向 registry.npmmirror(本机 .npmrc 生成), 美区 runner 会跨洋拉包 ——
+#   内容一致性由 lock 里的 sha512 兜住, 代价只有延迟; 要换成 npmjs 源得整份重生成 lock, 不在本工作流范围。
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        # 校验链用 sucrase 现编主进程源码 + 桩替换 electron 模块, 不碰 Electron 运行时:
+        # 跳过那 ~100MB 的 electron 二进制下载。npm ci 照常执行依赖的 postinstall(不拦截),
+        # 所以这里不需要再手动补跑 install.js —— typecheck/verify 谁也不碰 esbuild 的原生二进制
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Verify behaviour scripts
+        run: npm run verify

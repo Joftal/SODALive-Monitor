@@ -22,3 +22,6 @@ Thumbs.db
 
 # ===== 录制产物(默认位置=程序目录/recording) =====
 recording/
+
+# ===== 本地参考用的独立克隆(自带 .git, 数 GB 含编译产物, 绝不可入库) =====
+bililive-go/

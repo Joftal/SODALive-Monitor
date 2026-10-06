@@ -10,6 +10,42 @@ import { dataDir } from '../util'
 
 const KEEP_DAYS = 14
 
+// ---- 内存留档(诊断台): 写文件的同一发顺手在内存里留一份, 不额外读盘 ----
+// 只留最近 RING_CAP 条, 滚出去多少条要说得出来 —— "看着全其实是截了"比不显示更坏。
+// 这里存的是原文(与盘上同一份), 脱敏在往外递的那一步做(diag.ts)。
+export interface LogRecord {
+  seq: number
+  at: number
+  level: 'info' | 'warn' | 'error'
+  scope: string
+  text: string
+}
+const RING_CAP = 800
+const ring: LogRecord[] = []
+let seq = 0
+let total = 0
+const levelCount = { info: 0, warn: 0, error: 0 }
+
+function remember(level: 'info' | 'warn' | 'error', scope: string, msg: string, at: number): void {
+  total++
+  levelCount[level]++
+  ring.push({ seq: ++seq, at, level, scope, text: msg })
+  if (ring.length > RING_CAP) ring.shift()
+}
+
+export const logRing = {
+  cap: RING_CAP,
+  stats(): DiagStats {
+    return { kept: ring.length, total, dropped: Math.max(0, total - ring.length), warn: levelCount.warn, error: levelCount.error }
+  },
+  /** seq 之后的行(最旧的一条比 sinceSeq 大); 一次最多 limit 条, 超出即从旧的那头截 */
+  since(sinceSeq: number, limit = 400): LogRecord[] {
+    const out = ring.filter((r) => r.seq > sinceSeq)
+    return out.length > limit ? out.slice(out.length - limit) : out
+  }
+}
+type DiagStats = { kept: number; total: number; dropped: number; warn: number; error: number }
+
 function logDir(): string {
   const dir = path.join(dataDir(), 'logs')
   fs.mkdirSync(dir, { recursive: true })
@@ -23,6 +59,7 @@ function dayStamp(d = new Date()): string {
 }
 
 function write(level: 'info' | 'warn' | 'error', scope: string, msg: string): void {
+  remember(level, scope, msg, Date.now())
   try {
     const t = new Date()
     const ts = `${p2(t.getHours())}:${p2(t.getMinutes())}:${p2(t.getSeconds())}.${String(t.getMilliseconds()).padStart(3, '0')}`

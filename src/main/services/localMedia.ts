@@ -7,6 +7,7 @@ import { SESSION_PARTITION } from './pandalive'
 import { defaultRecordRoot } from '../util'
 import { logger } from './logger'
 import { thumbsRoot } from './thumbs'
+import { imgCache } from './imgCache'
 
 // ============ 本地媒体协议(plocal://) ============
 // 供渲染层 <video> 应用内回看本地录制产物:
@@ -15,6 +16,8 @@ import { thumbsRoot } from './thumbs'
 //   - 白名单: 仅 .mp4, 且必须位于当前录制根 / 默认录制根 / 历史任务目录之下
 //   - Range 手动实现: net.fetch(file://) 对 Range 的透传在不同版本不稳定,
 //     直接 fs 切片回 206, 保证大文件拖动进度条可用
+// 另一支 plocal://img/<base64url(https 地址)> 不走上面这套: 它的载荷不是本机路径,
+// 而是一条要被主进程取回并本机缓存的卡片图地址, 边界由 parseImgSrc 那把尺管(见 imgCache.ts)。
 // ==============================================
 
 const SCHEME = 'plocal'
@@ -129,6 +132,8 @@ export function installMediaHandler(): void {
   ses.protocol.handle(SCHEME, async (req) => {
     try {
       const u = new URL(req.url)
+      // 卡片图那一支: 载荷是一条要被主进程取回并本机缓存的 https 地址(白名单在 parseImgSrc 里)
+      if (u.host === 'img') return await imgCache.handle(req.url)
       const b64 = u.pathname.replace(/^\//, '')
       const abs = Buffer.from(b64, 'base64url').toString('utf-8')
       if (!isAllowed(abs)) {
