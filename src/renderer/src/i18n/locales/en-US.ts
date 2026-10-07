@@ -549,7 +549,7 @@ export default {
     newest: 'Up to date',
     hasUpdate: 'New version v{v}',
     goDownload: 'Download',
-    disclaimer: 'For personal study and research only; not affiliated with PandaLive. Recorded content is subject to local laws and platform terms — no commercial use or redistribution.'
+    disclaimer: 'For personal study and research only; not affiliated with Panda or SOOP. Recorded content is subject to local laws and platform terms — no commercial use or redistribution.'
   },
   diag: {
     title: 'Diagnostics',

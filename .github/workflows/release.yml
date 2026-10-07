@@ -155,13 +155,13 @@ jobs:
 
             | 文件(可点击) | 平台 | 说明 |
             |---|---|---|
-            | [SODALive Monitor-Setup-${{ inputs.version }}.exe](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-Setup-${{ inputs.version }}.exe) | Windows x64 | NSIS 安装包(推荐, 自动创建桌面快捷方式) |
-            | [SODALive Monitor-Portable-${{ inputs.version }}.exe](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-Portable-${{ inputs.version }}.exe) | Windows x64 | 便携免安装版, 数据随程序目录迁移 |
-            | [SODALive Monitor-${{ inputs.version }}-x64.dmg](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-x64.dmg) | macOS Intel | DMG 安装包(免签名分发: 首次请右键 → 打开) |
-            | [SODALive Monitor-${{ inputs.version }}-arm64.dmg](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-arm64.dmg) | macOS Apple Silicon(M 系列) | DMG 安装包(免签名分发: 首次请右键 → 打开) |
-            | [SODALive Monitor-${{ inputs.version }}-x64.zip](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-x64.zip) | macOS Intel | ZIP 免安装版(同上, 右键打开) |
-            | [SODALive Monitor-${{ inputs.version }}-arm64.zip](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-arm64.zip) | macOS Apple Silicon(M 系列) | ZIP 免安装版(同上, 右键打开) |
-            | [SODALive Monitor-${{ inputs.version }}-x86_64.AppImage](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-x86_64.AppImage) | Linux x64 | 免安装, `chmod +x` 直接运行 |
-            | [SODALive Monitor-${{ inputs.version }}-amd64.deb](https://github.com/Joftal/pd-monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-amd64.deb) | Linux x64 | 安装包(依赖 `libsecret-1-0`, 安装器自动处理) |
+            | [SODALive Monitor-Setup-${{ inputs.version }}.exe](https://github.com/Joftal/SODALive-Monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-Setup-${{ inputs.version }}.exe) | Windows x64 | NSIS 安装包(推荐, 自动创建桌面快捷方式) |
+            | [SODALive Monitor-Portable-${{ inputs.version }}.exe](https://github.com/Joftal/SODALive-Monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-Portable-${{ inputs.version }}.exe) | Windows x64 | 便携免安装版, 数据随程序目录迁移 |
+            | [SODALive Monitor-${{ inputs.version }}-x64.dmg](https://github.com/Joftal/SODALive-Monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-x64.dmg) | macOS Intel | DMG 安装包(免签名分发: 首次请右键 → 打开) |
+            | [SODALive Monitor-${{ inputs.version }}-arm64.dmg](https://github.com/Joftal/SODALive-Monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-arm64.dmg) | macOS Apple Silicon(M 系列) | DMG 安装包(免签名分发: 首次请右键 → 打开) |
+            | [SODALive Monitor-${{ inputs.version }}-x64.zip](https://github.com/Joftal/SODALive-Monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-x64.zip) | macOS Intel | ZIP 免安装版(同上, 右键打开) |
+            | [SODALive Monitor-${{ inputs.version }}-arm64.zip](https://github.com/Joftal/SODALive-Monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-arm64.zip) | macOS Apple Silicon(M 系列) | ZIP 免安装版(同上, 右键打开) |
+            | [SODALive Monitor-${{ inputs.version }}-x86_64.AppImage](https://github.com/Joftal/SODALive-Monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-x86_64.AppImage) | Linux x64 | 免安装, `chmod +x` 直接运行 |
+            | [SODALive Monitor-${{ inputs.version }}-amd64.deb](https://github.com/Joftal/SODALive-Monitor/releases/download/v${{ inputs.version }}/SODALive.Monitor-${{ inputs.version }}-amd64.deb) | Linux x64 | 安装包(依赖 `libsecret-1-0`, 安装器自动处理) |
 
             **数据位置**: Windows = 程序所在目录(data/ + electron-data/ + recording/, 安装版与便携版统一, 整体目录可备份迁移); macOS = `~/Library/Application Support/`; Linux = `~/.config/`

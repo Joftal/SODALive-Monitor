@@ -552,7 +552,7 @@ export default {
     newest: '已是最新版本',
     hasUpdate: '发现新版本 v{v}',
     goDownload: '前往下载',
-    disclaimer: '本项目仅供个人学习研究使用, 与 PandaLive 官方无任何关联; 录制内容请遵守当地法律法规与原平台条款, 勿用于任何商业用途或二次分发。'
+    disclaimer: '本项目仅供个人学习研究使用, 与 Panda、SOOP 两站官方无任何关联; 录制内容请遵守当地法律法规与原平台条款, 勿用于任何商业用途或二次分发。'
   },
   diag: {
     title: '诊断台',

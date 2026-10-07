@@ -866,7 +866,7 @@ const ph = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().
 
 // ============================================================================
 // D26 关于页身份数据单一来源: 作者/头像/仓库 slug/日志目录都从 appInfo(IPC) 来
-//   实测漏网: 模板里写死 `Joftal/pd-monitor`、`https://github.com/Joftal.png`、`…\data\logs\app-YYYYMMDD.log`
+//   实测漏网: 模板里写死过仓库 slug、作者头像 URL(`github.com/<作者>.png`)、`…\data\logs\app-YYYYMMDD.log`
 //   —— 换作者、换仓库名、mac/linux 下跑一份, 这三行显示的全是错的, 而且没人会去改模板。
 // ============================================================================
 checkWithAllowlist(

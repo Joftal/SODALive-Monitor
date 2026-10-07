@@ -4,8 +4,8 @@ export const APP_META = {
   author: 'Joftal',
   /** 作者主页(GitHub 头像 = 该地址 + '.png', 关于页两处都从这里取, 不再各写一遍) */
   authorUrl: 'https://github.com/Joftal',
-  repo: 'https://github.com/Joftal/pd-monitor',
-  releasesPage: 'https://github.com/Joftal/pd-monitor/releases'
+  repo: 'https://github.com/Joftal/SODALive-Monitor',
+  releasesPage: 'https://github.com/Joftal/SODALive-Monitor/releases'
 } as const
 
 /** 语义化版本比较: a>b → 1; a<b → -1; 相等 → 0(缺位补 0, 忽略前导 v/预发布尾) */

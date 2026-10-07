@@ -5,7 +5,7 @@
 > All-in-one desktop client for **PandaLive + SOOP** (Windows · macOS · Linux): **live monitoring · watching · recording · replay download**
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
-[![Release](https://img.shields.io/github/v/release/Joftal/pd-monitor)](https://github.com/Joftal/pd-monitor/releases)
+[![Release](https://img.shields.io/github/v/release/Joftal/SODALive-Monitor)](https://github.com/Joftal/SODALive-Monitor/releases)
 
 Electron + Vue 3.
 
@@ -22,7 +22,7 @@ Electron + Vue 3.
 
 ## 📦 Install
 
-Get the package for your platform from [Releases](https://github.com/Joftal/pd-monitor/releases): Windows installer / portable exe, macOS dmg / zip, Linux AppImage / deb. Sign in on the Account page after installing.
+Get the package for your platform from [Releases](https://github.com/Joftal/SODALive-Monitor/releases): Windows installer / portable exe, macOS dmg / zip, Linux AppImage / deb. Sign in on the Account page after installing.
 
 Both APIs are hosted overseas — if a direct connection fails, set an HTTP proxy under **Settings → Network**. Data lives next to the program on Windows (`data/` and `recording/`) and in the user data directory on macOS / Linux. If macOS reports the app as "damaged" on first launch, run `xattr -cr "/Applications/SODALive Monitor.app"`.
 

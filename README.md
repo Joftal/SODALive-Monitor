@@ -5,7 +5,7 @@
 > **PandaLive + SOOP** 双平台直播 **监控 / 观看 / 录制 / 回放下载** 一体化桌面客户端（Windows · macOS · Linux）
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
-[![Release](https://img.shields.io/github/v/release/Joftal/pd-monitor)](https://github.com/Joftal/pd-monitor/releases)
+[![Release](https://img.shields.io/github/v/release/Joftal/SODALive-Monitor)](https://github.com/Joftal/SODALive-Monitor/releases)
 
 Electron + Vue 3。
 
@@ -22,7 +22,7 @@ Electron + Vue 3。
 
 ## 📦 安装
 
-[Releases](https://github.com/Joftal/pd-monitor/releases) 下载对应平台的包：Windows 安装版 / 便携版，macOS dmg / zip，Linux AppImage / deb。装好后到「账号」页登录。
+[Releases](https://github.com/Joftal/SODALive-Monitor/releases) 下载对应平台的包：Windows 安装版 / 便携版，macOS dmg / zip，Linux AppImage / deb。装好后到「账号」页登录。
 
 接口在境外，直连失败就在「设置 → 网络」填 HTTP 代理。数据在程序同目录（Windows 是 `data/` 和 `recording/`），macOS / Linux 用系统用户数据目录。macOS 首次打开提示「已损坏」时执行 `xattr -cr "/Applications/SODALive Monitor.app"`。
 
